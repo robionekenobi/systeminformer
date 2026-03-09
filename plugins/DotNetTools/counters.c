@@ -425,8 +425,7 @@ CleanupExit:
     return appDomainsList;
 }
 
-_Success_(return)
-BOOLEAN OpenDotNetPublicControlBlock_V2(
+NTSTATUS OpenDotNetPublicControlBlock_V2(
     _In_ HANDLE ProcessId,
     _Out_ PVOID* BlockTableAddress
     )
@@ -492,8 +491,7 @@ BOOLEAN OpenDotNetPublicControlBlock_V2(
     return FALSE;
 }
 
-_Success_(return)
-BOOLEAN OpenDotNetPublicControlBlock_V4(
+NTSTATUS OpenDotNetPublicControlBlock_V4(
     _In_ BOOLEAN IsImmersive,
     _In_ HANDLE ProcessHandle,
     _In_ HANDLE ProcessId,
