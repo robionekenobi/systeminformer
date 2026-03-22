@@ -527,6 +527,22 @@ PhTerminateThread(
 PHLIBAPI
 NTSTATUS
 NTAPI
+PhSuspendThread(
+    _In_ HANDLE ThreadHandle,
+    _Out_opt_ PULONG PreviousSuspendCount
+    );
+
+PHLIBAPI
+NTSTATUS
+NTAPI
+PhResumeThread(
+    _In_ HANDLE ThreadHandle,
+    _Out_opt_ PULONG PreviousSuspendCount
+    );
+
+PHLIBAPI
+NTSTATUS
+NTAPI
 PhGetProcessBasicInformation(
     _In_ HANDLE ProcessHandle,
     _Out_ PPROCESS_BASIC_INFORMATION BasicInformation
@@ -1068,6 +1084,15 @@ PhSetEnvironmentVariableZ(
 PHLIBAPI
 NTSTATUS
 NTAPI
+PhGetProcessMemoryBasicInformation(
+    _In_ HANDLE ProcessHandle,
+    _In_ PVOID BaseAddress,
+    _Out_ PMEMORY_BASIC_INFORMATION BasicInformation
+    );
+
+PHLIBAPI
+NTSTATUS
+NTAPI
 PhGetProcessMappedFileName(
     _In_ HANDLE ProcessHandle,
     _In_ PVOID BaseAddress,
@@ -1221,7 +1246,8 @@ PhSetHandleInformationRemote(
     _In_ HANDLE ProcessHandle,
     _In_ HANDLE RemoteHandle,
     _In_ ULONG Mask,
-    _In_ ULONG Flags
+    _In_ ULONG Flags,
+    _In_opt_ PLARGE_INTEGER Timeout
     );
 
 PHLIBAPI
@@ -6109,6 +6135,28 @@ PhGetFileMotw(
     _Out_opt_ PPH_MOTW_ZONE_ID ZoneId,
     _Out_opt_ PPH_STRING* ReferrerUrl,
     _Out_opt_ PPH_STRING* HostUrl
+    );
+
+PHLIBAPI
+NTSTATUS
+NTAPI
+PhCreateWaitableTimer(
+    _Out_ PHANDLE TimerHandle,
+    _In_ ACCESS_MASK DesiredAccess,
+    _In_ TIMER_TYPE TimerType,
+    _In_ BOOLEAN HighResolution
+    );
+
+PHLIBAPI
+NTSTATUS
+NTAPI
+PhSetWaitableTimer(
+    _In_ HANDLE TimerHandle,
+    _In_ PLARGE_INTEGER DueTime,
+    _In_opt_ PLARGE_INTEGER Period,
+    _In_opt_ PTIMER_APC_ROUTINE TimerApcRoutine,
+    _In_opt_ PVOID TimerContext,
+    _In_ BOOLEAN ResumeTimer
     );
 
 PHLIBAPI

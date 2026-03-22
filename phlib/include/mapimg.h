@@ -616,9 +616,8 @@ typedef struct _PH_MAPPED_IMAGE_RESOURCES
     PPH_MAPPED_IMAGE MappedImage;
     PIMAGE_DATA_DIRECTORY DataDirectory;
     PIMAGE_RESOURCE_DIRECTORY ResourceDirectory;
-
-    ULONG NumberOfEntries;
     PPH_IMAGE_RESOURCE_ENTRY ResourceEntries;
+    SIZE_T NumberOfEntries;
 } PH_MAPPED_IMAGE_RESOURCES, *PPH_MAPPED_IMAGE_RESOURCES;
 
 PHLIBAPI
@@ -1366,5 +1365,66 @@ VOID PhFreeMappedWslImageDynamic(
     );
 
 EXTERN_C_END
+
+#include <TraceLoggingProvider.h>
+
+#define TLG_SIGNATURE "ETW0"
+
+#define TLG_BLOB_END 0
+#define TLG_BLOB_PROVIDER 1
+#define TLG_BLOB_EVENT 2 // Legacy
+#define TLG_BLOB_PROVIDER3 4
+#define TLG_BLOB_EVENT2 5 // Legacy
+#define TLG_BLOB_EVENT_V2 6
+
+typedef struct _PH_TLG_HEADER
+{
+    UCHAR Signature[4];
+    USHORT Size;
+    UCHAR Version;
+    UCHAR Flags;
+    ULONGLONG Magic;
+} PH_TLG_HEADER, *PPH_TLG_HEADER;
+
+typedef struct _PH_TLG_PROVIDER_META
+{
+    GUID ProviderGuid;
+    GUID ProviderGroupGuid;
+    PCHAR Name;
+    SIZE_T NameLength;
+} PH_TLG_PROVIDER_META, *PPH_TLG_PROVIDER_META;
+
+typedef struct _PH_TLG_EVENT_META
+{
+    ULONG EventId;
+    UCHAR Channel;
+    UCHAR Level;
+    UCHAR Opcode;
+    ULONGLONG Keyword;
+    PCHAR Name;
+    SIZE_T NameLength;
+} PH_TLG_EVENT_META, *PPH_TLG_EVENT_META;
+
+// Skip variable length trace logging extensions
+FORCEINLINE
+BOOLEAN
+PhpSkipTlgExtensions(
+    _Inout_ PVOID* Address,
+    _In_ PVOID EndAddress
+    )
+{
+    UCHAR b = 0;
+
+    do
+    {
+        if (!PhPtrReadBytes(Address, EndAddress, &b, sizeof(b)))
+            return FALSE;
+
+    } while (b & 0x80);
+
+    return TRUE;
+}
+
+
 
 #endif
