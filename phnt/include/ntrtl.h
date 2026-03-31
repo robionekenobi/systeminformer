@@ -2133,7 +2133,7 @@ RtlBarrierForDelete(
  * \param AddressSize The size of the value, in bytes. This parameter can be 1, 2, 4, or 8.
  * \param Timeout The number of milliseconds to wait before the operation times out. If this parameter is NULL (INFINITE), the thread waits indefinitely.
  * \remarks WaitOnAddress is guaranteed to return when the address is signaled, but it is also allowed to return for other reasons.
- * For this reason, the caller should compare the new value with the original undesired value to confirm that the value has actually changed. 
+ * For this reason, the caller should compare the new value with the original undesired value to confirm that the value has actually changed.
  * \sa https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitonaddress
  */
 NTSYSAPI
@@ -4973,6 +4973,12 @@ RtlGetFunctionTableListHead(
 // Linked lists
 //
 
+/**
+ * Initializes the head of a singly linked list.
+ *
+ * \param ListHead A pointer to the SLIST_HEADER that represents the list head.
+ * \sa https://learn.microsoft.com/en-us/windows/win32/api/winnt/nf-winnt-rtlinitializeslisthead
+ */
 NTSYSAPI
 VOID
 NTAPI
@@ -4980,6 +4986,13 @@ RtlInitializeSListHead(
     _Out_ PSLIST_HEADER ListHead
     );
 
+/**
+ * Retrieves the first entry in a singly linked list.
+ *
+ * \param ListHead A pointer to the initialized singly linked-list header.
+ * \return A pointer to the first entry in the list, or NULL if the list is empty.
+ * \sa https://learn.microsoft.com/en-us/windows/win32/api/winnt/nf-winnt-rtlfirstentryslist
+ */
 _Must_inspect_result_
 NTSYSAPI
 PSLIST_ENTRY
@@ -4988,6 +5001,13 @@ RtlFirstEntrySList(
     _In_ const SLIST_HEADER *ListHead
     );
 
+/**
+ * Removes an entry from the front of a singly linked list.
+ *
+ * \param ListHead A pointer to the singly linked-list header.
+ * \return The removed entry, or NULL if the list was empty.
+ * \sa https://learn.microsoft.com/en-us/windows/win32/api/winnt/nf-winnt-rtlinterlockedpopentryslist
+ */
 NTSYSAPI
 PSLIST_ENTRY
 NTAPI
@@ -4995,6 +5015,14 @@ RtlInterlockedPopEntrySList(
     _Inout_ PSLIST_HEADER ListHead
     );
 
+/**
+ * Inserts an entry at the front of a singly linked list.
+ *
+ * \param ListHead A pointer to the singly linked-list header.
+ * \param ListEntry A pointer to the entry to insert.
+ * \return The previous first entry in the list, or NULL if the list was empty.
+ * \sa https://learn.microsoft.com/en-us/windows/win32/api/winnt/nf-winnt-rtlinterlockedpushentryslist
+ */
 NTSYSAPI
 PSLIST_ENTRY
 NTAPI
@@ -5003,6 +5031,17 @@ RtlInterlockedPushEntrySList(
     _Inout_ __drv_aliasesMem PSLIST_ENTRY ListEntry
     );
 
+/**
+ * Inserts an entire singly linked list at the front of another singly linked list.
+ *
+ * \param ListHead A pointer to the destination list head.
+ * \param List A pointer to the first entry in the list being inserted.
+ * \param ListEnd A pointer to the last entry in the list being inserted.
+ * \param Count The number of entries in the list being inserted.
+ * \return The previous first entry in the destination list, or NULL if the
+ * destination list was empty.
+ * \sa https://learn.microsoft.com/en-us/windows/win32/api/interlockedapi/nf-interlockedapi-interlockedpushlistslistex
+ */
 NTSYSAPI
 PSLIST_ENTRY
 NTAPI
@@ -5013,6 +5052,13 @@ RtlInterlockedPushListSListEx(
     _In_ ULONG Count
     );
 
+/**
+ * \brief Removes all entries from a singly linked list.
+ *
+ * \param ListHead A pointer to the singly linked-list header.
+ * \return The previous first entry in the list, or NULL if the list was empty.
+ * \sa https://learn.microsoft.com/en-us/windows/win32/api/winnt/nf-winnt-rtlinterlockedflushslist
+ */
 NTSYSAPI
 PSLIST_ENTRY
 NTAPI
@@ -5020,6 +5066,13 @@ RtlInterlockedFlushSList(
     _Inout_ PSLIST_HEADER ListHead
     );
 
+/**
+ * Retrieves the number of entries in a singly linked list.
+ *
+ * \param ListHead A pointer to the singly linked-list header.
+ * \return The number of entries currently present in the list.
+ * \sa https://learn.microsoft.com/en-us/windows/win32/api/winnt/nf-winnt-rtlquerydepthslist
+ */
 NTSYSAPI
 USHORT
 NTAPI
@@ -6164,7 +6217,7 @@ typedef struct _IMAGE_FILE_MACHINES
     union
     {
         ULONG Value;
-        struct 
+        struct
         {
             ULONG MachineX86 : 1;
             ULONG MachineAmd64 : 1;
@@ -7982,6 +8035,17 @@ typedef struct in6_addr IN6_ADDR, *PIN6_ADDR;
 typedef IN_ADDR const *PCIN_ADDR;
 typedef IN6_ADDR const *PCIN6_ADDR;
 
+/**
+ * Converts an IPv4 address to a null-terminated ANSI string in standard
+ * dotted-decimal notation.
+ *
+ * \param Address The IPv4 address in network byte order.
+ * \param AddressString A caller-supplied buffer that receives the string form.
+ * The buffer should be able to hold at least 16 characters.
+ * \return A pointer to the terminating null character written to AddressString.
+ * \remarks This is a convenience routine that does not require Winsock to be loaded.
+ * \sa https://learn.microsoft.com/en-us/windows/win32/api/ip2string/nf-ip2string-rtlipv4addresstostringa
+ */
 NTSYSAPI
 PSTR
 NTAPI
@@ -7990,6 +8054,16 @@ RtlIpv4AddressToStringA(
     _Out_writes_(16) PSTR AddressString
     );
 
+/**
+ * Converts an IPv4 address to a null-terminated Unicode string in standard dotted-decimal notation.
+ *
+ * \param Address The IPv4 address in network byte order.
+ * \param AddressString A caller-supplied buffer that receives the string form.
+ * The buffer should be able to hold at least 16 wide characters.
+ * \return A pointer to the terminating null character written to AddressString.
+ * \remarks This is a convenience routine that does not require Winsock to be loaded.
+ * \sa https://learn.microsoft.com/en-us/windows/win32/api/ip2string/nf-ip2string-rtlipv4addresstostringw
+ */
 NTSYSAPI
 PWSTR
 NTAPI
@@ -7998,6 +8072,20 @@ RtlIpv4AddressToStringW(
     _Out_writes_(16) PWSTR AddressString
     );
 
+/**
+ * Converts an IPv4 address and port to a null-terminated ANSI string.
+ *
+ * \param Address The IPv4 address in network byte order.
+ * \param Port The port number in network byte order.
+ * \param AddressString A caller-supplied output buffer.
+ * \param AddressStringLength On input, the size of AddressString. On output,
+ * receives the required size if the buffer is too small.
+ * \return STATUS_SUCCESS on success, or an error status such as
+ * STATUS_INVALID_PARAMETER if the buffer is too small.
+ * \remarks The resulting string uses dotted-decimal notation followed by a
+ * colon and port number.
+ * \sa https://learn.microsoft.com/en-us/windows/win32/api/ip2string/nf-ip2string-rtlipv4addresstostringexa
+ */
 NTSYSAPI
 NTSTATUS
 NTAPI
@@ -8008,6 +8096,20 @@ RtlIpv4AddressToStringExA(
     _Inout_ PULONG AddressStringLength
     );
 
+/**
+ * Converts an IPv4 address and port to a null-terminated Unicode string.
+ *
+ * \param Address The IPv4 address in network byte order.
+ * \param Port The port number in network byte order.
+ * \param AddressString A caller-supplied output buffer.
+ * \param AddressStringLength On input, the size of AddressString. On output,
+ * receives the required size if the buffer is too small.
+ * \return STATUS_SUCCESS on success, or an error status such as
+ * STATUS_INVALID_PARAMETER if the buffer is too small.
+ * \remarks The resulting string uses dotted-decimal notation followed by a
+ * colon and port number.
+ * \sa https://learn.microsoft.com/en-us/windows/win32/api/ip2string/nf-ip2string-rtlipv4addresstostringexw
+ */
 NTSYSAPI
 NTSTATUS
 NTAPI
@@ -8018,6 +8120,16 @@ RtlIpv4AddressToStringExW(
     _Inout_ PULONG AddressStringLength
     );
 
+/**
+ * Converts an IPv6 address to a null-terminated ANSI string in standard IPv6 text format.
+ *
+ * \param Address The IPv6 address in network byte order.
+ * \param AddressString A caller-supplied buffer that receives the string form.
+ * The buffer should be able to hold at least 46 characters.
+ * \return A pointer to the terminating null character written to AddressString.
+ * \remarks This is a convenience routine that does not require Winsock to be loaded.
+ * \sa https://learn.microsoft.com/en-us/windows/win32/api/ip2string/nf-ip2string-rtlipv6addresstostringa
+ */
 NTSYSAPI
 PSTR
 NTAPI
@@ -8026,6 +8138,16 @@ RtlIpv6AddressToStringA(
     _Out_writes_(46) PSTR AddressString
     );
 
+/**
+ * Converts an IPv6 address to a null-terminated Unicode string in standard IPv6 text format.
+ *
+ * \param Address The IPv6 address in network byte order.
+ * \param AddressString A caller-supplied buffer that receives the string form.
+ * The buffer should be able to hold at least 46 wide characters.
+ * \return A pointer to the terminating null character written to AddressString.
+ * \remarks This is a convenience routine that does not require Winsock to be loaded.
+ * \sa https://learn.microsoft.com/en-us/windows/win32/api/ip2string/nf-ip2string-rtlipv6addresstostringw
+ */
 NTSYSAPI
 PWSTR
 NTAPI
@@ -8034,6 +8156,18 @@ RtlIpv6AddressToStringW(
     _Out_writes_(46) PWSTR AddressString
     );
 
+/**
+ * Converts an IPv6 address, scope ID, and port to a null-terminated ANSI string.
+ *
+ * \param Address The IPv6 address in network byte order.
+ * \param ScopeId The IPv6 scope identifier.
+ * \param Port The port number in network byte order.
+ * \param AddressString A caller-supplied output buffer.
+ * \param AddressStringLength On input, the size of AddressString. On output,
+ * receives the required size if the buffer is too small.
+ * \return STATUS_SUCCESS on success or an error status on failure.
+ * \sa https://learn.microsoft.com/en-us/windows/win32/api/ip2string/nf-ip2string-rtlipv6addresstostringexa
+ */
 NTSYSAPI
 NTSTATUS
 NTAPI
@@ -8045,6 +8179,18 @@ RtlIpv6AddressToStringExA(
     _Inout_ PULONG AddressStringLength
     );
 
+/**
+ * Converts an IPv6 address, scope ID, and port to a null-terminated Unicode string.
+ *
+ * \param Address The IPv6 address in network byte order.
+ * \param ScopeId The IPv6 scope identifier.
+ * \param Port The port number in network byte order.
+ * \param AddressString A caller-supplied output buffer.
+ * \param AddressStringLength On input, the size of AddressString. On output,
+ * receives the required size if the buffer is too small.
+ * \return STATUS_SUCCESS on success or an error status on failure.
+ * \sa https://learn.microsoft.com/en-us/windows/win32/api/ip2string/nf-ip2string-rtlipv6addresstostringexw
+ */
 NTSYSAPI
 NTSTATUS
 NTAPI
@@ -8056,6 +8202,18 @@ RtlIpv6AddressToStringExW(
     _Inout_ PULONG AddressStringLength
     );
 
+/**
+ * Parses an ANSI IPv4 address string into a binary IPv4 address.
+ *
+ * \param AddressString The null-terminated IPv4 address string to parse.
+ * \param Strict If TRUE, requires strict four-part dotted-decimal notation.
+ * If FALSE, additional legacy forms are accepted.
+ * \param Terminator On success, receives a pointer to the character that
+ * terminated the parsed address.
+ * \param Address Receives the parsed IPv4 address in network byte order.
+ * \return STATUS_SUCCESS on success or STATUS_INVALID_PARAMETER if parsing fails.
+ * \sa https://learn.microsoft.com/en-us/windows/win32/api/ip2string/nf-ip2string-rtlipv4stringtoaddressa
+ */
 NTSYSAPI
 NTSTATUS
 NTAPI
@@ -8066,6 +8224,18 @@ RtlIpv4StringToAddressA(
     _Out_ PIN_ADDR Address
     );
 
+/**
+ * Parses a Unicode IPv4 address string into a binary IPv4 address.
+ *
+ * \param AddressString The null-terminated IPv4 address string to parse.
+ * \param Strict If TRUE, requires strict four-part dotted-decimal notation.
+ * If FALSE, additional legacy forms are accepted.
+ * \param Terminator On success, receives a pointer to the character that
+ * terminated the parsed address.
+ * \param Address Receives the parsed IPv4 address in network byte order.
+ * \return STATUS_SUCCESS on success or STATUS_INVALID_PARAMETER if parsing fails.
+ * \sa https://learn.microsoft.com/en-us/windows/win32/api/ip2string/nf-ip2string-rtlipv4stringtoaddressw
+ */
 NTSYSAPI
 NTSTATUS
 NTAPI
@@ -8076,6 +8246,18 @@ RtlIpv4StringToAddressW(
     _Out_ PIN_ADDR Address
     );
 
+/**
+ * Parses an ANSI IPv4 address string and optional port into binary values.
+ *
+ * \param AddressString The null-terminated IPv4 address string, optionally
+ * followed by a colon and port number.
+ * \param Strict If TRUE, requires strict four-part dotted-decimal notation.
+ * If FALSE, additional legacy forms are accepted.
+ * \param Address Receives the parsed IPv4 address in network byte order.
+ * \param Port Receives the parsed port in network byte order, or zero if not present.
+ * \return STATUS_SUCCESS on success or STATUS_INVALID_PARAMETER on failure.
+ * \sa https://learn.microsoft.com/en-us/windows/win32/api/ip2string/nf-ip2string-rtlipv4stringtoaddressexa
+ */
 NTSYSAPI
 NTSTATUS
 NTAPI
@@ -8086,6 +8268,18 @@ RtlIpv4StringToAddressExA(
     _Out_ PUSHORT Port
     );
 
+/**
+ * Parses a Unicode IPv4 address string and optional port into binary values.
+ *
+ * \param AddressString The null-terminated IPv4 address string, optionally
+ * followed by a colon and port number.
+ * \param Strict If TRUE, requires strict four-part dotted-decimal notation.
+ * If FALSE, additional legacy forms are accepted.
+ * \param Address Receives the parsed IPv4 address in network byte order.
+ * \param Port Receives the parsed port in network byte order, or zero if not present.
+ * \return STATUS_SUCCESS on success or STATUS_INVALID_PARAMETER on failure.
+ * \sa https://learn.microsoft.com/en-us/windows/win32/api/ip2string/nf-ip2string-rtlipv4stringtoaddressexw
+ */
 NTSYSAPI
 NTSTATUS
 NTAPI
@@ -8096,6 +8290,16 @@ RtlIpv4StringToAddressExW(
     _Out_ PUSHORT Port
     );
 
+/**
+ * Parses an ANSI IPv6 address string into a binary IPv6 address.
+ *
+ * \param AddressString The null-terminated IPv6 address string to parse.
+ * \param Terminator On success, receives a pointer to the character that
+ * terminated the parsed address.
+ * \param Address Receives the parsed IPv6 address in network byte order.
+ * \return STATUS_SUCCESS on success or STATUS_INVALID_PARAMETER on failure.
+ * \sa https://learn.microsoft.com/en-us/windows/win32/api/ip2string/nf-ip2string-rtlipv6stringtoaddressa
+ */
 NTSYSAPI
 NTSTATUS
 NTAPI
@@ -8105,6 +8309,16 @@ RtlIpv6StringToAddressA(
     _Out_ PIN6_ADDR Address
     );
 
+/**
+ * Parses a Unicode IPv6 address string into a binary IPv6 address.
+ *
+ * \param AddressString The null-terminated IPv6 address string to parse.
+ * \param Terminator On success, receives a pointer to the character that
+ * terminated the parsed address.
+ * \param Address Receives the parsed IPv6 address in network byte order.
+ * \return STATUS_SUCCESS on success or STATUS_INVALID_PARAMETER on failure.
+ * \sa https://learn.microsoft.com/en-us/windows/win32/api/ip2string/nf-ip2string-rtlipv6stringtoaddressw
+ */
 NTSYSAPI
 NTSTATUS
 NTAPI
@@ -8114,6 +8328,16 @@ RtlIpv6StringToAddressW(
     _Out_ PIN6_ADDR Address
     );
 
+/**
+ * Parses an ANSI IPv6 address string with optional scope ID and port.
+ *
+ * \param AddressString The null-terminated IPv6 address string to parse.
+ * \param Address Receives the parsed IPv6 address in network byte order.
+ * \param ScopeId Receives the parsed scope identifier.
+ * \param Port Receives the parsed port in network byte order.
+ * \return STATUS_SUCCESS on success or STATUS_INVALID_PARAMETER on failure.
+ * \sa https://learn.microsoft.com/en-us/windows/win32/api/ip2string/nf-ip2string-rtlipv6stringtoaddressexa
+ */
 NTSYSAPI
 NTSTATUS
 NTAPI
@@ -8124,6 +8348,16 @@ RtlIpv6StringToAddressExA(
     _Out_ PUSHORT Port
     );
 
+/**
+ * Parses a Unicode IPv6 address string with optional scope ID and port.
+ *
+ * \param AddressString The null-terminated IPv6 address string to parse.
+ * \param Address Receives the parsed IPv6 address in network byte order.
+ * \param ScopeId Receives the parsed scope identifier.
+ * \param Port Receives the parsed port in network byte order.
+ * \return STATUS_SUCCESS on success or STATUS_INVALID_PARAMETER on failure.
+ * \sa https://learn.microsoft.com/en-us/windows/win32/api/ip2string/nf-ip2string-rtlipv6stringtoaddressexw
+ */
 NTSYSAPI
 NTSTATUS
 NTAPI
@@ -10200,6 +10434,12 @@ RtlAddIntegrityLabelToBoundaryDescriptor(
 // Version
 //
 
+/**
+ * \brief Basic operating system version information returned by RtlGetVersion.
+ *
+ * \details This is the RTL equivalent of OSVERSIONINFOW. Callers must set
+ * OSVersionInfoSize to sizeof(RTL_OSVERSIONINFO) before calling RtlGetVersion.
+ */
 // rev
 typedef struct _RTL_OSVERSIONINFO
 {
@@ -10211,6 +10451,14 @@ typedef struct _RTL_OSVERSIONINFO
     WCHAR CSDVersion[128];
 } RTL_OSVERSIONINFO, *PRTL_OSVERSIONINFO;
 
+/**
+ * \brief Extended operating system version information returned by RtlGetVersion.
+ *
+ * \details This is the RTL equivalent of OSVERSIONINFOEXW. In addition to the
+ * basic version fields, it includes service-pack, suite-mask, and product-type
+ * information. Callers must set OSVersionInfoSize to sizeof(RTL_OSVERSIONINFOEX)
+ * before calling RtlGetVersion.
+ */
 // rev
 typedef struct _RTL_OSVERSIONINFOEX
 {
@@ -10228,6 +10476,10 @@ typedef struct _RTL_OSVERSIONINFOEX
 } RTL_OSVERSIONINFOEX, *PRTL_OSVERSIONINFOEX;
 
 // rev
+/**
+ * Further-extended operating system version information used by newer
+ * Windows builds.
+ */
 typedef struct _RTL_OSVERSIONINFOEX2
 {
     ULONG OSVersionInfoSize;
@@ -10246,22 +10498,65 @@ typedef struct _RTL_OSVERSIONINFOEX2
 } RTL_OSVERSIONINFOEX2, *PRTL_OSVERSIONINFOEX2;
 
 // rev
+//
+// Input:
+// - OSVersionInfoSize must be set to sizeof(RTL_OSVERSIONINFOEX3).
+// - Input.LayerNumber selects which build layer to query.
+// - Input.AttribSelector selects which attribute to return for that layer.
+//
+// Output:
+// - MajorVersion/MinorVersion/BuildNumber identify the selected layer.
+// - LayerAttrib contains the string for the selected attribute.
+// - LayerCount returns the number of available build layers.
+// - LayerFlags contains per-layer flags; bit 0 is top-level and bit 1 is checked.
+
+#define RTL_OSVERSIONINFO_ATTRIB_LAYER_NAME    0
+#define RTL_OSVERSIONINFO_ATTRIB_BUILD_STAMP   1
+#define RTL_OSVERSIONINFO_ATTRIB_BUILD_BRANCH  2 // HKLM\Software\Microsoft\Windows NT\CurrentVersion\BuildBranch
+#define RTL_OSVERSIONINFO_ATTRIB_BUILD_ARCH    3
+#define RTL_OSVERSIONINFO_ATTRIB_BUILD_LAB     4 // HKLM\Software\Microsoft\Windows NT\CurrentVersion\BuildLab
+#define RTL_OSVERSIONINFO_ATTRIB_BUILD_LAB_EX  5 // HKLM\Software\Microsoft\Windows NT\CurrentVersion\BuildLabEx
+
+// rev
+/**
+ * Further-extended operating system version information used by newer
+ * Windows builds.
+ */
 typedef struct _RTL_OSVERSIONINFOEX3
 {
+    //
+    // Input: Set to sizeof(RTL_OSVERSIONINFOEX3) before calling RtlGetVersion.
+    //
     ULONG OSVersionInfoSize;
+
+    //
+    // Output: Version numbers for the selected build layer.
+    //
     ULONG MajorVersion;
     ULONG MinorVersion;
     ULONG BuildNumber;
+
+    //
+    // Output: A QFE/build-layer numeric field.
+    //
     union
     {
         ULONG PlatformId;
         ULONG QfeNumber;
     };
+
+    //
+    // Output: Contains the string for the selected attribute.
+    //
     union
     {
         WCHAR CSDVersion[128];
         WCHAR LayerAttrib[128];
     };
+
+    //
+    // Output: Operating system version information
+    //
     USHORT ServicePackMajor;
     USHORT ServicePackMinor;
     USHORT SuiteMask;
@@ -10269,16 +10564,65 @@ typedef struct _RTL_OSVERSIONINFOEX3
     UCHAR Reserved;
     ULONG SuiteMaskEx;
     ULONG Reserved2;
+
+    //
+    // Input LayerNumber:
+    //   Which build layer to query, in the range [0, LayerCount).
+    //
+    // Input AttribSelector:
+    //   Which value to retrieve for that layer:
+    //     0 = layer display name
+    //     1 = BuildStamp
+    //     2 = BuildBranch
+    //     3 = BuildArch
+    //     4 = BuildLab
+    //     5 = BuildLabEx
+    //
     union
     {
         USHORT RawInput16;
-        USHORT LayerNumber : 12;
-        USHORT AttribSelector : 4;
+        struct
+        {
+            USHORT LayerNumber : 12;
+            USHORT AttribSelector : 4;
+        };
     } Input;
-    USHORT LayerCount;
-    ULONG LayerFlags;
-} RTL_OSVERSIONINFOEX3, *PRTL_OSVERSIONINFOEX3;
 
+    //
+    // Output: total number of available build layers.
+    //
+    USHORT LayerCount;
+
+    //
+    // Output: flags for the selected layer.
+    //
+    union
+    {
+        ULONG LayerFlags;
+        struct
+        {
+            ULONG IsTopLevel : 1;
+            ULONG IsChecked : 1;
+            ULONG Spare : 30;
+        };
+    };
+} RTL_OSVERSIONINFOEX3, * PRTL_OSVERSIONINFOEX3;
+
+/**
+ * Gets version information about the currently running operating system.
+ *
+ * \param VersionInformation A pointer to an RTL_OSVERSIONINFO- or
+ * RTL_OSVERSIONINFOEX-compatible structure that receives the current operating
+ * system version information.
+ * \return STATUS_SUCCESS on success.
+ * \remarks RtlGetVersion is the native equivalent of GetVersionEx. When using
+ * this routine to test for a required Windows version, compare version numbers
+ * as greater-than-or-equal rather than exact equality so later versions also
+ * satisfy the check. Because features can be delivered outside the base OS,
+ * major and minor version numbers alone are not a reliable feature test; use
+ * RtlVerifyVersionInfo when checking for specific system features.
+ * \sa https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtlgetversion
+ */
 NTSYSAPI
 NTSTATUS
 NTAPI
@@ -10286,6 +10630,28 @@ RtlGetVersion(
     _Out_ PVOID VersionInformation
     );
 
+/**
+ * Compares specified operating system version requirements against the
+ * currently running operating system.
+ *
+ * \param VersionInformation A pointer to an RTL_OSVERSIONINFOEX-compatible
+ * structure that describes the required operating system attributes.
+ * \param TypeMask A bitwise OR of VER_* flags that selects which members of
+ * VersionInformation participate in the comparison.
+ * \param ConditionMask A comparison mask built with VER_SET_CONDITION that
+ * specifies how each selected member is compared.
+ * \return STATUS_SUCCESS if the current operating system satisfies the
+ * specified requirements, STATUS_INVALID_PARAMETER for invalid input, or
+ * STATUS_REVISION_MISMATCH if the version check fails.
+ * \remarks This routine is the native equivalent of VerifyVersionInfo. It is
+ * intended for version and feature gating, and is more reliable than comparing
+ * major/minor version numbers alone. Version comparisons for major version,
+ * minor version, and service pack fields are evaluated sequentially, so a
+ * higher major version satisfies the check without testing lower-order fields.
+ * To verify a version range, call RtlVerifyVersionInfo separately for the lower
+ * and upper bounds.
+ * \sa https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtlverifyversioninfo
+ */
 NTSYSAPI
 NTSTATUS
 NTAPI
@@ -12315,7 +12681,7 @@ typedef enum _RTL_BSD_ITEM_TYPE
     RtlBsdItemMax
 } RTL_BSD_ITEM_TYPE;
 
-typedef struct _RTL_BSD_DATA_POWER_TRANSITION 
+typedef struct _RTL_BSD_DATA_POWER_TRANSITION
 {
     UCHAR PowerButton : 1;
     UCHAR SleepButton : 1;
@@ -12326,14 +12692,14 @@ typedef struct _RTL_BSD_DATA_POWER_TRANSITION
     UCHAR Reserved : 2;
 } RTL_BSD_DATA_POWER_TRANSITION, *PRTL_BSD_DATA_POWER_TRANSITION;
 
-typedef struct _RTL_BSD_DATA_ERROR_INFO 
+typedef struct _RTL_BSD_DATA_ERROR_INFO
 {
     ULONG BootId;           // The Boot ID where the error occurred
     ULONG RepeatCount;      // How many times this specific error happened
     ULONG OtherErrorCount;  // Count of other errors
 } RTL_BSD_DATA_ERROR_INFO, *PRTL_BSD_DATA_ERROR_INFO;
 
-typedef struct _RTL_BSD_POWER_BUTTON_PRESS_INFO 
+typedef struct _RTL_BSD_POWER_BUTTON_PRESS_INFO
 {
     ULONG LastPressBootId;
     ULONG LastPressTime;         // Time in seconds since boot
@@ -12343,7 +12709,7 @@ typedef struct _RTL_BSD_POWER_BUTTON_PRESS_INFO
     ULONG CoalescedPressCount;
 } RTL_BSD_POWER_BUTTON_PRESS_INFO, *PRTL_BSD_POWER_BUTTON_PRESS_INFO;
 
-typedef struct _RTL_BSD_DATA_POWER_TRANSITION_EXTENSION 
+typedef struct _RTL_BSD_DATA_POWER_TRANSITION_EXTENSION
 {
     UCHAR SystemIdleTransition : 1;
     UCHAR FanError : 1;
