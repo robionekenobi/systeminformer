@@ -254,7 +254,6 @@ PhGetPhVersionHash(
     VOID
     );
 
-PHAPPAPI
 PPH_STRING
 NTAPI
 PhGetPhVersionDateTime(
@@ -300,7 +299,7 @@ NTAPI
 PhShellProcessHacker(
     _In_opt_ HWND WindowHandle,
     _In_opt_ PCWSTR Parameters,
-    _In_ ULONG ShowWindowType,
+    _In_ LONG ShowWindowType,
     _In_ ULONG Flags,
     _In_ ULONG AppFlags,
     _In_opt_ ULONG Timeout,
@@ -312,7 +311,7 @@ NTSTATUS PhShellProcessHackerEx(
     _In_opt_ HWND WindowHandle,
     _In_opt_ PCWSTR FileName,
     _In_opt_ PCWSTR Parameters,
-    _In_ ULONG ShowWindowType,
+    _In_ LONG ShowWindowType,
     _In_ ULONG Flags,
     _In_ ULONG AppFlags,
     _In_opt_ ULONG Timeout,
