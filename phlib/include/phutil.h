@@ -447,6 +447,16 @@ PhShowStatus(
     );
 
 PHLIBAPI
+VOID
+NTAPI
+PhShowStatusHR(
+    _In_opt_ HWND WindowHandle,
+    _In_opt_ PCWSTR Message,
+    _In_ HRESULT Status,
+    _In_opt_ ULONG Win32Result
+    );
+
+PHLIBAPI
 BOOLEAN
 NTAPI
 PhShowContinueStatus(
@@ -2140,13 +2150,14 @@ PhFinalHashString(
     )
 {
     NTSTATUS status;
+    ULONG hashLength = PH_HASH_SHA256_LENGTH;
     UCHAR hash[PH_HASH_SHA256_LENGTH];
 
-    status = PhFinalHash(Context, hash, sizeof(hash), NULL);
+    status = PhFinalHash(Context, hash, hashLength, &hashLength);
 
     if (NT_SUCCESS(status))
     {
-        *HashString = PhBufferToHexString(hash, sizeof(hash));
+        *HashString = PhBufferToHexString(hash, hashLength);
     }
 
     return status;
