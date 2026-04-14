@@ -1253,7 +1253,7 @@ VOID KsiActivateDynData(
 #if defined(KSI_ONLINE_PLATFORM_SUPPORT)
         KsiShowKernelSupportCheckDialog(WindowHandle);
 #else
-        if (PhGetPhReleaseChannel() < PhCanaryChannel)
+        if (PhGetBuildReleaseChannel() < PhCanaryChannel)
         {
             PhShowKsiMessageEx(
                 WindowHandle,
@@ -2170,7 +2170,7 @@ PPH_STRING KsiCreateBuildString(
     PH_FORMAT format[8];
     WCHAR formatBuffer[260];
 
-    PhGetPhVersionNumbers(&majorVersion, &minorVersion, &buildVersion, &revisionVersion);
+    PhGetBuildVersionNumbers(&majorVersion, &minorVersion, &buildVersion, &revisionVersion);
     PhInitFormatSR(&format[0], versionHeader);
     PhInitFormatU(&format[1], majorVersion);
     PhInitFormatC(&format[2], L'.');
@@ -2609,7 +2609,7 @@ VOID KsiShowKernelSupportCheckDialog(
         );
 
     context.WindowHandle = WindowHandle;
-    context.IsCanaryChannel = (PhGetPhReleaseChannel() >= PhCanaryChannel);
+    context.IsCanaryChannel = (PhGetBuildReleaseChannel() >= PhCanaryChannel);
     KsiGetKernelSupportData(&context.SupportData);
 
     TASKDIALOGCONFIG config = { sizeof(TASKDIALOGCONFIG) };

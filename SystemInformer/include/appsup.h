@@ -233,14 +233,14 @@ VOID PhSetWindowOpacity(
 PHAPPAPI
 PPH_STRING
 NTAPI
-PhGetPhVersion(
+PhGetBuildVersion(
     VOID
     );
 
 PHAPPAPI
 VOID
 NTAPI
-PhGetPhVersionNumbers(
+PhGetBuildVersionNumbers(
     _Out_opt_ PULONG MajorVersion,
     _Out_opt_ PULONG MinorVersion,
     _Out_opt_ PULONG BuildNumber,
@@ -250,13 +250,13 @@ PhGetPhVersionNumbers(
 PHAPPAPI
 PPH_STRING
 NTAPI
-PhGetPhVersionHash(
+PhGetBuildCommit(
     VOID
     );
 
 PPH_STRING
 NTAPI
-PhGetPhVersionDateTime(
+PhGetBuildTime(
     VOID
     );
 
@@ -272,14 +272,14 @@ typedef enum _PH_RELEASE_CHANNEL
 PHAPPAPI
 PH_RELEASE_CHANNEL
 NTAPI
-PhGetPhReleaseChannel(
+PhGetBuildReleaseChannel(
     VOID
     );
 
 PHAPPAPI
 PCWSTR
 NTAPI
-PhGetPhReleaseChannelString(
+PhGetBuildReleaseChannelString(
     VOID
     );
 

@@ -75,7 +75,7 @@ PPH_UPDATER_CONTEXT CreateUpdateContext(
     context->StartupCheck = StartupCheck;
     context->Cleanup = TRUE;
     context->PortableMode = !!SystemInformer_IsPortableMode();
-    context->Channel = PhGetPhReleaseChannel();
+    context->Channel = PhGetBuildReleaseChannel();
 
     return context;
 }
@@ -223,6 +223,7 @@ BOOLEAN LastUpdateCheckExpired(
     ULONG lastTimeUpdateSeconds;
     LARGE_INTEGER lastTimeUpdateTicks;
     LARGE_INTEGER currentTimeUpdateTicks;
+    LONG updateInterval;
 
     PhQuerySystemTime(&currentTimeUpdateTicks);
     lastTimeUpdateSeconds = PhGetIntegerSetting(SETTING_NAME_LAST_CHECK);
@@ -236,7 +237,11 @@ BOOLEAN LastUpdateCheckExpired(
 
     PhSecondsSince1970ToTime(lastTimeUpdateSeconds, &lastTimeUpdateTicks);
 
-    if (currentTimeUpdateTicks.QuadPart - lastTimeUpdateTicks.QuadPart >= 7 * PH_TICKS_PER_DAY)
+    updateInterval = PhGetIntegerSetting(SETTING_NAME_UPDATE_INTERVAL);
+    updateInterval = __max(updateInterval, 1);
+    updateInterval = __min(updateInterval, 90);
+
+    if (currentTimeUpdateTicks.QuadPart - lastTimeUpdateTicks.QuadPart >= updateInterval * PH_TICKS_PER_DAY)
     {
         PhTimeToSecondsSince1970(&currentTimeUpdateTicks, &lastTimeUpdateSeconds);
         PhSetIntegerSetting(SETTING_NAME_LAST_CHECK, lastTimeUpdateSeconds);
@@ -259,7 +264,7 @@ PPH_STRING UpdateVersionString(
     PH_FORMAT format[8];
     WCHAR formatBuffer[260];
 
-    PhGetPhVersionNumbers(&majorVersion, &minorVersion, &buildVersion, &revisionVersion);
+    PhGetBuildVersionNumbers(&majorVersion, &minorVersion, &buildVersion, &revisionVersion);
     PhInitFormatSR(&format[0], versionHeader);
     PhInitFormatU(&format[1], majorVersion);
     PhInitFormatC(&format[2], L'.');
@@ -541,8 +546,8 @@ ULONG64 ParseVersionString(
     remaining = PhGetStringRef(VersionString);
     PhSplitStringRefAtChar(&remaining, L'.', &majorPart, &remaining);
     PhSplitStringRefAtChar(&remaining, L'.', &minorPart, &remaining);
-    PhSplitStringRefAtChar(&remaining, L'.', &revisionPart, &remaining);
     PhSplitStringRefAtChar(&remaining, L'.', &buildPart, &remaining);
+    PhSplitStringRefAtChar(&remaining, L'.', &revisionPart, &remaining);
 
     if (majorPart.Length)
     {
@@ -554,14 +559,14 @@ ULONG64 ParseVersionString(
         PhStringToUInt64(&minorPart, 10, &minorInteger);
     }
 
-    if (revisionPart.Length)
-    {
-        PhStringToUInt64(&revisionPart, 10, &buildInteger);
-    }
-
     if (buildPart.Length)
     {
-        PhStringToUInt64(&buildPart, 10, &revisionInteger);
+        PhStringToUInt64(&buildPart, 10, &buildInteger);
+    }
+
+    if (revisionPart.Length)
+    {
+        PhStringToUInt64(&revisionPart, 10, &revisionInteger);
     }
 
     return MAKE_VERSION_ULONGLONG(
@@ -601,7 +606,7 @@ BOOLEAN QueryUpdateData(
     {
         if (!Context->SwitchingChannel)
         {
-            Context->Channel = PhGetPhReleaseChannel();
+            Context->Channel = PhGetBuildReleaseChannel();
         }
 
         switch (Context->Channel)
@@ -692,15 +697,15 @@ BOOLEAN QueryUpdateData(
         goto CleanupExit;
 
 #if defined(FORCE_FUTURE_VERSION)
-    PhGetPhVersionNumbers(&majorVersion, &minorVersion, &buildVersion, &revisionVersion);
+    PhGetBuildVersionNumbers(&majorVersion, &minorVersion, &buildVersion, &revisionVersion);
     Context->CurrentVersion = MAKE_VERSION_ULONGLONG(USHRT_MAX, USHRT_MAX, USHRT_MAX, USHRT_MAX);
     Context->LatestVersion = MAKE_VERSION_ULONGLONG(majorVersion, minorVersion, buildVersion, revisionVersion);
 #elif defined(FORCE_LATEST_VERSION)
-    PhGetPhVersionNumbers(&majorVersion, &minorVersion, &buildVersion, &revisionVersion);
+    PhGetBuildVersionNumbers(&majorVersion, &minorVersion, &buildVersion, &revisionVersion);
     Context->CurrentVersion = MAKE_VERSION_ULONGLONG(0, 0, 0, 0);
     Context->LatestVersion = MAKE_VERSION_ULONGLONG(majorVersion, minorVersion, buildVersion, revisionVersion);
 #else
-    PhGetPhVersionNumbers(&majorVersion, &minorVersion, &buildVersion, &revisionVersion);
+    PhGetBuildVersionNumbers(&majorVersion, &minorVersion, &buildVersion, &revisionVersion);
     Context->CurrentVersion = MAKE_VERSION_ULONGLONG(majorVersion, minorVersion, buildVersion, revisionVersion);
     Context->LatestVersion = ParseVersionString(Context->Version);
 #endif
@@ -778,9 +783,6 @@ NTSTATUS UpdateCheckSilentThread(
             // Check if the user hasn't already opened the dialog.
             if (!UpdateDialogHandle)
             {
-                // We have data we're going to cache and pass into the dialog
-                context->HaveData = TRUE;
-
                 if (PhGetIntegerSetting(SETTING_NAME_SHOW_NOTIFICATION))
                 {
                     if (!HR_SUCCESS(PhShowIconNotificationEx(
@@ -791,11 +793,15 @@ NTSTATUS UpdateCheckSilentThread(
                         NULL
                         )))
                     {
+                        // We have data we're going to cache and pass into the dialog
+                        context->HaveData = TRUE;
                         ShowUpdateDialog(context);
                     }
                 }
                 else
                 {
+                    // We have data we're going to cache and pass into the dialog
+                    context->HaveData = TRUE;
                     // Show the dialog asynchronously on a new thread.
                     ShowUpdateDialog(context);
                 }
@@ -1453,7 +1459,7 @@ VOID ShowStartupUpdateDialog(
             context->SetupFileHash = PhGetJsonValueAsString(jsonObject, "setup_hash");
             context->SetupFileSignature = PhGetJsonValueAsString(jsonObject, "setup_sig");
 
-            PhGetPhVersionNumbers(&majorVersion, &minorVersion, &buildVersion, &revisionVersion);
+            PhGetBuildVersionNumbers(&majorVersion, &minorVersion, &buildVersion, &revisionVersion);
 #ifdef FORCE_LATEST_VERSION
             context->LatestVersion = MAKE_VERSION_ULONGLONG(majorVersion, minorVersion, buildVersion, revisionVersion);
             context->CurrentVersion = MAKE_VERSION_ULONGLONG(majorVersion, minorVersion, buildVersion, revisionVersion);
@@ -1467,12 +1473,12 @@ VOID ShowStartupUpdateDialog(
 
     PhClearReference(&jsonString);
 
-    if (PhIsNullOrEmptyString(context->Version) &&
-        PhIsNullOrEmptyString(context->RelDate) &&
-        PhIsNullOrEmptyString(context->SetupFileDownloadUrl) &&
-        PhIsNullOrEmptyString(context->SetupFileLength) &&
-        PhIsNullOrEmptyString(context->SetupFileHash) &&
-        PhIsNullOrEmptyString(context->SetupFileSignature) &&
+    if (PhIsNullOrEmptyString(context->Version) ||
+        PhIsNullOrEmptyString(context->RelDate) ||
+        PhIsNullOrEmptyString(context->SetupFileDownloadUrl) ||
+        PhIsNullOrEmptyString(context->SetupFileLength) ||
+        PhIsNullOrEmptyString(context->SetupFileHash) ||
+        PhIsNullOrEmptyString(context->SetupFileSignature) ||
         PhIsNullOrEmptyString(context->CommitHash))
     {
         goto CleanupExit;

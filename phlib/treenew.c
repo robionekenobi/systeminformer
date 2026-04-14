@@ -2159,15 +2159,27 @@ LRESULT PhTnpOnUserMessage(
         {
             if (Context->EnableRedraw <= 0)
             {
+#if defined (TREENEW_VSCROLL_ANCHOR)
+                PhTnpPrepareVScrollAnchor(Context);
+#endif
                 Context->SuspendUpdateStructure = TRUE;
                 Context->SuspendUpdateLayout = TRUE;
                 InvalidateRect(Context->Handle, NULL, FALSE);
                 return TRUE;
             }
 
+#if defined (TREENEW_VSCROLL_ANCHOR)
+            PhTnpPrepareVScrollAnchor(Context);
+#endif
             PhTnpRestructureNodes(Context);
             PhTnpLayout(Context);
+#if !defined(TREENEW_VSCROLL_ANCHOR)
+            // In the VSCROLL_ANCHOR path, PhTnpUpdateScrollBars (called from PhTnpLayout)
+            // owns the invalidation decision for structural changes. Without the anchor
+            // path, it cannot guarantee a full repaint when content shifts, so we must
+            // explicitly invalidate here.
             InvalidateRect(Context->Handle, NULL, FALSE);
+#endif
         }
         return TRUE;
     case TNM_ADDCOLUMN:
@@ -2405,7 +2417,7 @@ LRESULT PhTnpOnUserMessage(
             parts->HeaderHeight = Context->HeaderHeight;
             parts->RowHeight = Context->RowHeight;
             parts->VScrollWidth = Context->VScrollVisible ? Context->VScrollWidth : 0;
-            parts->HScrollHeight = Context->HScrollHeight ? Context->HScrollHeight : 0;
+            parts->HScrollHeight = Context->HScrollVisible ? Context->HScrollHeight : 0;
             parts->VScrollPosition = Context->VScrollPosition;
             parts->HScrollPosition = Context->HScrollPosition;
             parts->FixedWidth = Context->FixedWidth;
@@ -2527,7 +2539,16 @@ LRESULT PhTnpOnUserMessage(
             if (index >= Context->NumberOfColumnsByDisplay + (Context->FixedColumnVisible ? 1 : 0))
                 return FALSE;
 
-            index = Context->ColumnsByDisplay[index - (Context->FixedColumnVisible ? 1 : 0)]->Id;
+            if (Context->FixedColumnVisible)
+            {
+                if (index == 0)
+                    return PhTnpCopyColumn(Context, Context->FixedColumn->Id, (PPH_TREENEW_COLUMN)LParam);
+                index = Context->ColumnsByDisplay[index - 1]->Id;
+            }
+            else
+            {
+                index = Context->ColumnsByDisplay[index]->Id;
+            }
 
             return PhTnpCopyColumn(Context, index, (PPH_TREENEW_COLUMN)LParam);
         }
@@ -3058,6 +3079,163 @@ VOID PhTnpSetFixedWidth(
         Context->NormalLeft = 0;
     }
 }
+
+#if defined(TREENEW_VSCROLL_ANCHOR)
+/**
+ * Computes the maximum valid vertical scroll position for the specified row count and page size.
+ *
+ * \param Count Number of rows in the flat list.
+ * \param RowsPerPage Number of visible rows in the viewport.
+ * \return The maximum valid vertical scroll position.
+ */
+LONG PhTnpGetMaxVScrollPosition(
+    _In_ ULONG Count,
+    _In_ LONG RowsPerPage
+    )
+{
+    LONG maxPosition;
+
+    maxPosition = Count != 0 ? (LONG)Count - 1 : 0;
+
+    if (RowsPerPage > 0)
+        maxPosition -= RowsPerPage - 1;
+
+    return __max(maxPosition, 0);
+}
+
+/**
+ * Finds a node in the current flat list using pointer identity.
+ *
+ * \param Context Pointer to the treenew context structure.
+ * \param Node Pointer to the node to locate.
+ * \param Index Receives the node index when found.
+ * \return TRUE if the node is present in the flat list; otherwise, FALSE.
+ */
+_Success_(return)
+BOOLEAN PhTnpFindFlatListNode(
+    _In_ PPH_TREENEW_CONTEXT Context,
+    _In_ PPH_TREENEW_NODE Node,
+    _Out_ PULONG Index
+    )
+{
+    // Fast path: check if the node's cached index is still valid
+    if (
+        Node->Index < Context->FlatList->Count &&
+        Context->FlatList->Items[Node->Index] == Node
+        )
+    {
+        *Index = Node->Index;
+        return TRUE;
+    }
+
+    // Fallback to linear search if node moved
+    for (ULONG i = 0; i < Context->FlatList->Count; i++)
+    {
+        if (Context->FlatList->Items[i] == Node)
+        {
+            *Index = i;
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+/**
+ * Captures the current viewport anchor so a structural update can restore it afterwards.
+ *
+ * \param Context Pointer to the treenew context structure.
+ */
+VOID PhTnpPrepareVScrollAnchor(
+    _In_ PPH_TREENEW_CONTEXT Context
+    )
+{
+    SCROLLINFO scrollInfo;
+    LONG maxPosition;
+
+    if (FlagOn(Context->VScrollAnchorFlags, PH_TREENEW_VSCROLL_ANCHOR_PENDING))
+        return;
+
+    Context->VScrollAnchorFlags = PH_TREENEW_VSCROLL_ANCHOR_PENDING;
+    Context->VScrollAnchorNode = NULL;
+    Context->FlatListAnchorEnd = FALSE;
+
+    if (Context->VScrollPosition <= 0 || Context->FlatList->Count == 0)
+    {
+        SetFlag(Context->VScrollAnchorFlags, PH_TREENEW_VSCROLL_ANCHOR_START);
+        return;
+    }
+
+    ZeroMemory(&scrollInfo, sizeof(SCROLLINFO));
+    scrollInfo.cbSize = sizeof(SCROLLINFO);
+    scrollInfo.fMask = SIF_RANGE | SIF_PAGE;
+    GetScrollInfo(Context->VScrollHandle, SB_CTL, &scrollInfo);
+
+    maxPosition = PhTnpGetMaxVScrollPosition(__max((LONG)scrollInfo.nMax + 1, 0), scrollInfo.nPage);
+
+    if (Context->VScrollPosition >= maxPosition)
+    {
+        SetFlag(Context->VScrollAnchorFlags, PH_TREENEW_VSCROLL_ANCHOR_END);
+        Context->FlatListAnchorEnd = TRUE;
+        return;
+    }
+
+    if ((ULONG)Context->VScrollPosition < Context->FlatList->Count)
+    {
+        Context->VScrollAnchorNode = Context->FlatList->Items[Context->VScrollPosition];
+        SetFlag(Context->VScrollAnchorFlags, PH_TREENEW_VSCROLL_ANCHOR_NODE);
+    }
+}
+
+/**
+ * Computes the anchored vertical scroll position after a structural update.
+ *
+ * \param Context Pointer to the treenew context structure.
+ * \param RowsPerPage Number of visible rows in the viewport.
+ * \param Position Receives the anchored scroll position.
+ * \return TRUE if an anchored position was resolved; otherwise, FALSE.
+ */
+_Success_(return)
+BOOLEAN PhTnpGetAnchoredVScrollPosition(
+    _In_ PPH_TREENEW_CONTEXT Context,
+    _In_ LONG RowsPerPage,
+    _Out_ PLONG Position
+    )
+{
+    BOOLEAN anchored;
+    ULONG index;
+
+    anchored = FALSE;
+
+    if (!FlagOn(Context->VScrollAnchorFlags, PH_TREENEW_VSCROLL_ANCHOR_PENDING))
+        return FALSE;
+
+    if (FlagOn(Context->VScrollAnchorFlags, PH_TREENEW_VSCROLL_ANCHOR_START))
+    {
+        *Position = 0;
+        anchored = TRUE;
+    }
+    else if (FlagOn(Context->VScrollAnchorFlags, PH_TREENEW_VSCROLL_ANCHOR_END))
+    {
+        *Position = PhTnpGetMaxVScrollPosition(Context->FlatList->Count, RowsPerPage);
+        anchored = TRUE;
+    }
+    else if (
+        FlagOn(Context->VScrollAnchorFlags, PH_TREENEW_VSCROLL_ANCHOR_NODE) &&
+        Context->VScrollAnchorNode &&
+        PhTnpFindFlatListNode(Context, Context->VScrollAnchorNode, &index)
+        )
+    {
+        *Position = index;
+        anchored = TRUE;
+    }
+
+    Context->VScrollAnchorFlags = 0;
+    Context->VScrollAnchorNode = NULL;
+
+    return anchored;
+}
+#endif // #if defined(TREENEW_VSCROLL_ANCHOR)
 
 /**
  * Enables or disables redrawing of the treenew control.
@@ -4294,8 +4472,16 @@ VOID PhTnpRestructureNodes(
 
     Context->FocusNodeFound = FALSE;
 
+#if defined(TREENEW_VSCROLL_ANCHOR)
+    Context->FlatListPreCount = Context->FlatList->Count;
+#endif
+
     PhClearList(Context->FlatList);
     Context->CanAnyExpand = FALSE;
+
+#if defined(TREENEW_VSCROLL_ANCHOR)
+    Context->FlatListStructureChanged = TRUE;
+#endif
 
     for (i = 0; i < numberOfChildren; i++)
     {
@@ -4420,6 +4606,14 @@ VOID PhTnpSetExpandedNode(
                 }
             }
 
+#if defined(TREENEW_VSCROLL_ANCHOR)
+            PhTnpPrepareVScrollAnchor(Context);
+            Node->Expanded = Expanded;
+            PhTnpRestructureNodes(Context);
+            PhTnpLayout(Context);
+            InvalidateRect(Context->Handle, NULL, FALSE);
+            UpdateWindow(Context->Handle);
+#else
             Node->Expanded = Expanded;
             PhTnpRestructureNodes(Context);
             // We need to update the window before the scrollbars get updated in order for the
@@ -4427,6 +4621,7 @@ VOID PhTnpSetExpandedNode(
             InvalidateRect(Context->Handle, NULL, FALSE);
             UpdateWindow(Context->Handle);
             PhTnpLayout(Context);
+#endif
         }
     }
 }
@@ -4563,7 +4758,7 @@ BOOLEAN PhTnpGetCellParts(
                     if (Column->TextFlags & DT_CENTER)
                     {
                         Parts->TextRect.left = Parts->ContentRect.left / 2 + (Parts->ContentRect.right - textSize.cx) / 2;
-                        Parts->TextRect.right = Parts->ContentRect.left + textSize.cx;
+                        Parts->TextRect.right = Parts->TextRect.left + textSize.cx;
                     }
                     else if (Column->TextFlags & DT_RIGHT)
                     {
@@ -5613,7 +5808,7 @@ BOOLEAN PhTnpProcessNodeKey(
                         {
                             Context->FocusNode = newNode;
                             Context->MarkNodeIndex = newNode->Index;
-                            PhTnpEnsureVisibleNode(Context, Context->FocusNode->Index + 1);
+                            PhTnpEnsureVisibleNode(Context, Context->FocusNode->Index);
                             PhTnpSetHotNode(Context, newNode, FALSE);
                             PhTnpSelectRange(Context, Context->FocusNode->Index, Context->FocusNode->Index, TN_SELECT_RESET, &changedStart, &changedEnd);
 
@@ -5911,6 +6106,9 @@ VOID PhTnpUpdateScrollBars(
     LONG deltaX;
     LOGICAL oldHScrollVisible;
     RECT rect;
+#if defined(TREENEW_VSCROLL_ANCHOR)
+    LONG anchoredPosition;
+#endif
 
     clientRect = Context->ClientRect;
     width = clientRect.right - Context->FixedWidth;
@@ -5942,6 +6140,15 @@ VOID PhTnpUpdateScrollBars(
     scrollInfo.nMax = Context->FlatList->Count != 0 ? Context->FlatList->Count - 1 : 0;
     scrollInfo.nPage = height / Context->RowHeight;
     SetScrollInfo(Context->VScrollHandle, SB_CTL, &scrollInfo, TRUE);
+
+#if defined(TREENEW_VSCROLL_ANCHOR)
+    if (PhTnpGetAnchoredVScrollPosition(Context, scrollInfo.nPage, &anchoredPosition))
+    {
+        scrollInfo.fMask = SIF_POS;
+        scrollInfo.nPos = anchoredPosition;
+        SetScrollInfo(Context->VScrollHandle, SB_CTL, &scrollInfo, TRUE);
+    }
+#endif
 
     // The scroll position may have changed due to the modified scroll range.
     scrollInfo.fMask = SIF_POS;
@@ -6012,8 +6219,41 @@ VOID PhTnpUpdateScrollBars(
         InvalidateRect(Context->Handle, &rect, FALSE);
     }
 
-    if (deltaRows != 0 || deltaX != 0)
+#if defined(TREENEW_VSCROLL_ANCHOR)
+    if (Context->FlatListStructureChanged)
+    {
+        // Optimization: when the viewport is anchored to the end of the list and rows were
+        // only appended (pure append), the already-visible rows haven't changed content.
+        // Blit them up by deltaRows and repaint only the newly exposed bottom strip, instead
+        // of invalidating the entire client area.
+        if (
+            Context->FlatListAnchorEnd &&
+            deltaX == 0 &&
+            deltaRows > 0 &&
+            Context->FlatList->Count > Context->FlatListPreCount &&
+            deltaRows == (LONG)(Context->FlatList->Count - Context->FlatListPreCount)
+            )
+        {
+            PhTnpProcessScroll(Context, deltaRows, 0);
+        }
+        else
+        {
+            InvalidateRect(Context->Handle, NULL, FALSE);
+        }
+
+        Context->FlatListStructureChanged = FALSE;
+        Context->FlatListAnchorEnd = FALSE;
+    }
+    else if (deltaRows != 0 || deltaX != 0)
+    {
         PhTnpProcessScroll(Context, deltaRows, deltaX);
+    }
+#else
+    if (deltaRows != 0 || deltaX != 0)
+    {
+        PhTnpProcessScroll(Context, deltaRows, deltaX);
+    }
+#endif
 
     if (Context->VScrollVisible && Context->HScrollVisible)
     {
@@ -9141,6 +9381,9 @@ VOID PhTnpReorderUpdate(
 {
     LONG y;
     ULONG idx;
+    LONG localYTop;
+    LONG mid;
+    BOOLEAN dropAfter = FALSE;
 
     if (Context->FlatList->Count == 0)
         return;
@@ -9155,9 +9398,9 @@ VOID PhTnpReorderUpdate(
     if (idx >= Context->FlatList->Count)
         idx = Context->FlatList->Count - 1;
 
-    BOOLEAN dropAfter = FALSE;
-    LONG localYTop = Context->HeaderHeight + ((LONG)idx - Context->VScrollPosition) * Context->RowHeight;
-    LONG mid = localYTop + (Context->RowHeight / 2);
+    localYTop = Context->HeaderHeight + ((LONG)idx - Context->VScrollPosition) * Context->RowHeight;
+    mid = localYTop + (Context->RowHeight / 2);
+
     if (CursorY >= mid)
     {
         dropAfter = TRUE;

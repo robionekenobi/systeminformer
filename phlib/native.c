@@ -6905,6 +6905,112 @@ NTSTATUS PhSetSystemFileCacheSize(
     return status;
 }
 
+NTSTATUS PhCreateMutant(
+    _Out_ PHANDLE MutantHandle,
+    _In_ ACCESS_MASK DesiredAccess,
+    _In_opt_ HANDLE RootDirectory,
+    _In_opt_ PCPH_STRINGREF ObjectName,
+    _In_ BOOLEAN InitialOwner
+    )
+{
+    NTSTATUS status;
+    UNICODE_STRING objectName;
+    OBJECT_ATTRIBUTES objectAttributes;
+
+    if (ObjectName)
+    {
+        if (!PhStringRefToUnicodeString(ObjectName, &objectName))
+            return STATUS_NAME_TOO_LONG;
+    }
+    else
+    {
+        RtlInitEmptyUnicodeString(&objectName, NULL, 0);
+    }
+
+    InitializeObjectAttributes(
+        &objectAttributes,
+        &objectName,
+        OBJ_CASE_INSENSITIVE,
+        RootDirectory,
+        NULL
+        );
+
+    status = NtCreateMutant(
+        MutantHandle,
+        DesiredAccess,
+        &objectAttributes,
+        InitialOwner
+        );
+
+    return status;
+}
+
+NTSTATUS PhOpenMutant(
+    _Out_ PHANDLE MutantHandle,
+    _In_ ACCESS_MASK DesiredAccess,
+    _In_opt_ HANDLE RootDirectory,
+    _In_opt_ PCPH_STRINGREF ObjectName
+    )
+{
+    NTSTATUS status;
+    UNICODE_STRING objectName;
+    OBJECT_ATTRIBUTES objectAttributes;
+
+    if (ObjectName)
+    {
+        if (!PhStringRefToUnicodeString(ObjectName, &objectName))
+            return STATUS_NAME_TOO_LONG;
+    }
+    else
+    {
+        RtlInitEmptyUnicodeString(&objectName, NULL, 0);
+    }
+
+    InitializeObjectAttributes(
+        &objectAttributes,
+        &objectName,
+        OBJ_CASE_INSENSITIVE,
+        RootDirectory,
+        NULL
+        );
+
+    status = NtOpenMutant(
+        MutantHandle,
+        DesiredAccess,
+        &objectAttributes
+        );
+
+    return status;
+}
+
+NTSTATUS PhGetMutantBasicInformation(
+    _In_ HANDLE MutantHandle,
+    _Out_ PMUTANT_BASIC_INFORMATION BasicInformation
+    )
+{
+    return NtQueryMutant(
+        MutantHandle,
+        MutantBasicInformation,
+        BasicInformation,
+        sizeof(MUTANT_BASIC_INFORMATION),
+        NULL
+        );
+}
+
+NTSTATUS PhGetMutantOwnerInformation(
+    _In_ HANDLE MutantHandle,
+    _Out_ PMUTANT_OWNER_INFORMATION OwnerInformation
+    )
+{
+    return NtQueryMutant(
+        MutantHandle,
+        MutantOwnerInformation,
+        OwnerInformation,
+        sizeof(MUTANT_OWNER_INFORMATION),
+        NULL
+        );
+}
+
 /**
  * Creates an event object, sets the initial state of the event to the specified value,
  * and opens a handle to the object with the specified desired access.
@@ -6948,6 +7054,26 @@ NTSTATUS PhCreateEvent(
     }
 
     return status;
+}
+
+/**
+ * Gets basic information for a event.
+ *
+ * \param EventHandle A handle to a event. The handle must have EVENT_QUERY_STATE access.
+ * \param BasicInformation A variable which receives the information.
+ */
+NTSTATUS PhGetEventBasicInformation(
+    _In_ HANDLE EventHandle,
+    _Out_ PEVENT_BASIC_INFORMATION BasicInformation
+    )
+{
+    return NtQueryEvent(
+        EventHandle,
+        EventBasicInformation,
+        BasicInformation,
+        sizeof(EVENT_BASIC_INFORMATION),
+        NULL
+        );
 }
 
 /**
@@ -8241,28 +8367,29 @@ NTSTATUS PhSetWaitableTimer(
     _In_opt_ PLARGE_INTEGER Period,
     _In_opt_ PTIMER_APC_ROUTINE TimerApcRoutine,
     _In_opt_ PVOID TimerContext,
-    _In_ BOOLEAN ResumeTimer
+    _In_ BOOLEAN ResumeTimer,
+    _In_ BOOLEAN HighResolution
     )
 {
-    if (NtSetTimer2_Import())
-    {
-        T2_SET_PARAMETERS timerParameters;
-
-        memset(&timerParameters, 0, sizeof(T2_SET_PARAMETERS));
-        timerParameters.Version = TIMER2_SET_PARAMETERS_CURRENT_VERSION;
-        timerParameters.NoWakeTolerance = 0;
-
-        return NtSetTimer2_Import()(
-            TimerHandle,
-            DueTime,
-            Period,
-            &timerParameters
-            );
-    }
-
-    if (NtSetTimerEx_Import())
+    if (HighResolution)
     {
         TIMER_SET_COALESCABLE_TIMER_INFO timerParameters;
+
+        if (NtSetTimer2_Import())
+        {
+            T2_SET_PARAMETERS timerParameters;
+
+            memset(&timerParameters, 0, sizeof(T2_SET_PARAMETERS));
+            timerParameters.Version = TIMER2_SET_PARAMETERS_CURRENT_VERSION;
+            timerParameters.NoWakeTolerance = 0;
+
+            return NtSetTimer2_Import()(
+                TimerHandle,
+                DueTime,
+                Period,
+                &timerParameters
+                );
+        }
 
         memset(&timerParameters, 0, sizeof(TIMER_SET_COALESCABLE_TIMER_INFO));
         timerParameters.DueTime.QuadPart = DueTime->QuadPart;
@@ -8275,7 +8402,7 @@ NTSTATUS PhSetWaitableTimer(
             TimerHandle,
             TimerSetCoalescableTimer,
             &timerParameters,
-            sizeof(timerParameters)
+            sizeof(TIMER_SET_COALESCABLE_TIMER_INFO)
             );
     }
 

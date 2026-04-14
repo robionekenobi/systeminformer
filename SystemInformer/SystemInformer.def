@@ -78,11 +78,11 @@ EXPORTS
     PhGetGeneralCallback
     PhGetImageListIcon
     PhGetListViewContextMenuPoint
-    PhGetPhReleaseChannel
-    PhGetPhReleaseChannelString
-    PhGetPhVersion
-    PhGetPhVersionHash
-    PhGetPhVersionNumbers
+    PhGetBuildReleaseChannel
+    PhGetBuildReleaseChannelString
+    PhGetBuildVersion
+    PhGetBuildCommit
+    PhGetBuildVersionNumbers
     PhGetProcessIsSuspended
     PhGetProcessKnownType
     PhGetProcessKnownTypeEx
@@ -247,6 +247,7 @@ EXPORTS
     PhUiRestartComputer
     PhUiRestartProcess
     PhUiRestartServices
+    PhUiFreezeThreads
     PhUiResumeProcesses
     PhUiResumeThreads
     PhUiResumeTreeProcess
@@ -280,6 +281,7 @@ EXPORTS
     PhUiTerminateProcesses
     PhUiTerminateThreads
     PhUiTerminateTreeProcess
+    PhUiThawThreads
     PhUiThawTreeProcess
     PhUiUnloadModule
 
@@ -393,6 +395,7 @@ EXPORTS
     PhCreateThreadEx
     PhDecodeUnicodeDecoder
     PhDelayExecution
+    PhDelayExecutionEx
     PhDeleteArray
     PhDeleteBytesBuilder
     PhDeleteCallback
@@ -738,6 +741,7 @@ EXPORTS
     PhFinalHash
     PhFormatDate
     PhFormatDateTime
+    PhFormatDateTimeToBuffer
     PhFormatDecimal
     PhFormatGuid
     PhFormatImageVersionInfo
@@ -753,6 +757,7 @@ EXPORTS
     PhGenerateGuidFromName
     PhGenerateRandomAlphaString
     PhGenerateRandomNumber64
+    PhGetActivationFactory
     PhGetApplicationDataFileName
     PhGetApplicationDirectory
     PhGetApplicationDirectoryFileName
