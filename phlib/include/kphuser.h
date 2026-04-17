@@ -61,7 +61,7 @@ KphSetParameters(
     );
 
 PHLIBAPI
-VOID
+NTSTATUS
 NTAPI
 KphSetServiceSecurity(
     _In_ SC_HANDLE ServiceHandle
@@ -578,7 +578,7 @@ NTSTATUS
 NTAPI
 KphGetInformerProcessSettings(
     _In_ HANDLE ProcessHandle,
-    _In_ PKPH_INFORMER_SETTINGS Settings
+    _Out_ PKPH_INFORMER_SETTINGS Settings
     );
 
 PHLIBAPI
