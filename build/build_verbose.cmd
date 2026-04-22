@@ -10,7 +10,6 @@ REM ----------------------------------------------------------------------------
 REM Initialize script state, tool discovery values, and logger settings.
 set "ExitCode=0"
 set "IsCI=false"
-set "TLG=auto"
 set "TLV=normal"
 set "VSINSTALLPATH="
 set "VS_ARM64_SUPPORT=false"
@@ -18,7 +17,6 @@ set "VCVARS_ARCH=amd64"
 
 REM Run the main script flow and capture the final exit code.
 call :DetectCi
-call :ConfigureTerminalLogger
 call :ConfigureVerbosity "%~1"
 call :Main
 if errorlevel 1 set "ExitCode=%errorlevel%"
@@ -76,7 +74,7 @@ REM ----------------------------------------------------------------------------
 :RunMsBuild
 echo:
 echo Building %~4
-msbuild /m %~1 -t:rebuild -p:Configuration=%~2 -p:Platform=%~3 -verbosity:%TLV% -terminalLogger:%TLG%
+msbuild /m %~1 -t:rebuild -p:Configuration=%~2 -p:Platform=%~3 -verbosity:%TLV%
 exit /b %errorlevel%
 
 REM -----------------------------------------------------------------------------
@@ -135,14 +133,6 @@ REM ----------------------------------------------------------------------------
 :DetectCi
 if /i "%GITHUB_ACTIONS%"=="true" set "IsCI=true"
 if /i "%TF_BUILD%"=="true" set "IsCI=true"
-exit /b 0
-
-REM -----------------------------------------------------------------------------
-REM Function: ConfigureTerminalLogger
-REM Description: Disables the terminal logger when running under CI.
-REM -----------------------------------------------------------------------------
-:ConfigureTerminalLogger
-if /i "%IsCI%"=="true" set "TLG=off"
 exit /b 0
 
 REM -----------------------------------------------------------------------------

@@ -20,7 +20,7 @@
 #endif
 
 #ifdef __hstring_h__
-static_assert(sizeof(HSTRING_REFERENCE) == sizeof(HSTRING_HEADER), "HSTRING_REFERENCE must equal WSTRING_HEADER");
+static_assert(sizeof(HSTRING_REFERENCE) == sizeof(HSTRING_HEADER), "HSTRING_REFERENCE must equal HSTRING_HEADER");
 #else
 static_assert(sizeof(HSTRING_REFERENCE) == sizeof(WSTRING_HEADER), "HSTRING_REFERENCE must equal WSTRING_HEADER");
 #endif
@@ -1283,7 +1283,7 @@ PPH_LIST PhEnumPackageApplicationUserModelIds(
                 __x_ABI_CWindows_CApplicationModel_CIPackage2_Release(currentPackage2);
             }
 
-            __FIIterator_1_Windows__CApplicationModel__CPackage_Release(currentPackage);
+            __x_ABI_CWindows_CApplicationModel_CIPackage_Release(currentPackage);
         }
 
         if (HR_FAILED(status))
