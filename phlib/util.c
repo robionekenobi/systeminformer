@@ -9247,7 +9247,7 @@ HRESULT PhActivateInstanceDllBase(
     _Out_ PVOID* Ppv
     )
 {
-    HRESULT (WINAPI* DllGetActivationFactory_I)(_In_ HSTRING RuntimeClassId, _Out_ PVOID * ActivationFactory);
+    HRESULT (WINAPI* DllGetActivationFactory_I)(_In_ HSTRING RuntimeClassId, _Out_ PVOID * ActivationFactory) = NULL;
     HRESULT status;
     HSTRING_REFERENCE string;
     IActivationFactory* activationFactory;
@@ -9371,19 +9371,17 @@ HRESULT PhActivateInstance(
 #endif
 }
 
-#if defined(PH_NATIVE_RING_BUFFER)
-// This function creates a ring buffer by allocating a pagefile-backed section
-// and mapping two views of that section next to each other. This way if the
-// last record in the buffer wraps it can still be accessed in a linear fashion
-// using its base VA. (Win10 RS5 and above only) (dmex)
-// Based on Win32 version: https://docs.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualalloc2#examples
 /**
- * Creates a ring buffer.
+ * Creates a ring buffer by allocating a pagefile-backed section
+ * and mapping two views of that section next to each other.
+ * If the last record in the buffer wraps it can still be accessed
+ * in a linear fashion using its base VA.
  *
  * \param BufferSize The size of the buffer.
  * \param RingBuffer Receives a pointer to the ring buffer.
  * \param SecondaryView Receives a pointer to the secondary view of the buffer.
  * \return Successful or errant status.
+ * \sa https://docs.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualalloc2#examples
  */
 NTSTATUS PhCreateRingBuffer(
     _In_ SIZE_T BufferSize,
@@ -9403,12 +9401,15 @@ NTSTATUS PhCreateRingBuffer(
     if ((BufferSize % PhSystemBasicInformation.AllocationGranularity) != 0)
         return STATUS_UNSUCCESSFUL;
 
+    if (!(NtAllocateVirtualMemoryEx_Import() && NtCreateSectionEx_Import() && NtMapViewOfSectionEx_Import()))
+        return STATUS_PROCEDURE_NOT_FOUND;
+
     //
     // Reserve a placeholder region where the buffer will be mapped.
     //
 
     regionSize = 2 * BufferSize;
-    status = NtAllocateVirtualMemoryEx(
+    status = NtAllocateVirtualMemoryEx_Import()(
         NtCurrentProcess(),
         &placeholder1,
         &regionSize,
@@ -9443,7 +9444,7 @@ NTSTATUS PhCreateRingBuffer(
     //
 
     sectionSize.QuadPart = BufferSize;
-    status = NtCreateSectionEx(
+    status = NtCreateSectionEx_Import()(
         &sectionHandle,
         SECTION_ALL_ACCESS,
         NULL,
@@ -9464,7 +9465,7 @@ NTSTATUS PhCreateRingBuffer(
 
     regionSize = BufferSize;
     sectionView1 = placeholder1;
-    status = NtMapViewOfSectionEx(
+    status = NtMapViewOfSectionEx_Import()(
         sectionHandle,
         NtCurrentProcess(),
         &sectionView1,
@@ -9491,7 +9492,7 @@ NTSTATUS PhCreateRingBuffer(
 
     regionSize = BufferSize;
     sectionView2 = placeholder2;
-    status = NtMapViewOfSectionEx(
+    status = NtMapViewOfSectionEx_Import()(
         sectionHandle,
         NtCurrentProcess(),
         &sectionView2,
@@ -9548,7 +9549,6 @@ CleanupExit:
 
     return status;
 }
-#endif
 
 /**
  * Suspends the current thread for a specified interval.
