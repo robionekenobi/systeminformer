@@ -13,7 +13,7 @@
 #ifndef _PH_PHDK_H
 #define _PH_PHDK_H
 
-#define PHNT_VERSION PHNT_WINDOWS_11_23H2
+#define PHNT_VERSION PHNT_WINDOWS_NEW
 #define PHAPPAPI __declspec(dllimport)
 
 #include "ph.h"
