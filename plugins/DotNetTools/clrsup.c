@@ -1168,8 +1168,7 @@ VOID DnGetProcessDotNetRuntimes(
 
     context.RuntimeList = PhCreateList(1);
 
-    //context.ImageName = DnCoreClrModuleName;
-    PhInitializeStringRef(&context.ImageName, L"coreclr.dll");
+    context.ImageName = DnCoreClrModuleName;
     PhEnumGenericModules(
         dataTarget->ProcessId,
         dataTarget->ProcessHandle,
@@ -1281,8 +1280,7 @@ BOOLEAN DnGetProcessCoreClrPath(
     DnCLRDataTarget* dataTarget = (DnCLRDataTarget*)DataTarget;
     DN_ENUM_CLR_PATH_CONTEXT context = { 0 };
 
-    //context.BaseName = DnCoreClrModuleName;
-    PhInitializeStringRef(&context.BaseName, L"coreclr.dll");
+    context.BaseName = DnCoreClrModuleName;
     PhEnumGenericModules(
         dataTarget->ProcessId,
         dataTarget->ProcessHandle,
@@ -1293,8 +1291,7 @@ BOOLEAN DnGetProcessCoreClrPath(
 
     if (PhIsNullOrEmptyString(context.FileName))
     {
-        //context.BaseName = DnClrModuleName;
-        PhInitializeStringRef(&context.BaseName, L"clr.dll");
+        context.BaseName = DnClrModuleName;
         PhEnumGenericModules(
             dataTarget->ProcessId,
             dataTarget->ProcessHandle,
