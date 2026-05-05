@@ -270,7 +270,7 @@ static VOID PhpOptionsSetImageList(
 
     if (imageListHandle)
     {
-        PhImageListSetIconSize(imageListHandle, 2, PhGetDpi(24, dpiValue));
+        PhImageListSetIconSize(imageListHandle, 2, PhScaleToDisplay(24, dpiValue));
 
         if (Treeview)
             TreeView_SetImageList(WindowHandle, imageListHandle, TVSIL_NORMAL);
@@ -279,7 +279,7 @@ static VOID PhpOptionsSetImageList(
     }
     else
     {
-        if (imageListHandle = PhImageListCreate(2, PhGetDpi(24, dpiValue), ILC_MASK | ILC_COLOR32, 1, 1))
+        if (imageListHandle = PhImageListCreate(2, PhScaleToDisplay(24, dpiValue), ILC_MASK | ILC_COLOR32, 1, 1))
         {
             if (Treeview)
                 TreeView_SetImageList(WindowHandle, imageListHandle, TVSIL_NORMAL);
@@ -1902,6 +1902,23 @@ INT_PTR CALLBACK PhpOptionsGeneralDlgProc(
         break;
     case WM_DPICHANGED_AFTERPARENT:
         {
+            LOGFONT font;
+            HFONT fontHandle;
+
+            if (GetCurrentFont(&font) && (fontHandle = CreateFontIndirect(&font)))
+            {
+                PhReplaceWindowFont(&CurrentFontInstance, NULL, fontHandle, FALSE);
+                SetWindowFont(OptionsTreeControl, CurrentFontInstance, TRUE); // HACK
+                SetWindowFont(ListViewHandle, CurrentFontInstance, TRUE);
+                SetWindowFont(GetDlgItem(hwndDlg, IDC_FONT), CurrentFontInstance, TRUE);
+            }
+
+            if (GetCurrentFontMonospace(&font) && (fontHandle = CreateFontIndirect(&font)))
+            {
+                PhReplaceWindowFont(&CurrentFontMonospaceInstance, NULL, fontHandle, FALSE);
+                SetWindowFont(GetDlgItem(hwndDlg, IDC_FONTMONOSPACE), CurrentFontMonospaceInstance, TRUE);
+            }
+
             PhLayoutManagerUpdate(&LayoutManager, LOWORD(wParam));
             PhLayoutManagerLayout(&LayoutManager);
 
@@ -2284,7 +2301,7 @@ static INT_PTR CALLBACK PhpOptionsAdvancedEditDlgProc(
         break;
     case WM_DPICHANGED_AFTERPARENT:
         {
-            PhLayoutManagerUpdate(&LayoutManager, LOWORD(wParam));
+            PhLayoutManagerUpdate(&LayoutManager, PhGetWindowDpi(hwndDlg));
             PhLayoutManagerLayout(&LayoutManager);
         }
         break;
@@ -3129,25 +3146,25 @@ INT_PTR CALLBACK PhpOptionsAdvancedDlgProc(
             PhDeleteLayoutManager(&context->LayoutManager);
 
             PhRemoveTreeNewFilter(&context->TreeFilterSupport, context->TreeFilterEntry);
-            DeleteOptionsAdvancedTree(context);
+             DeleteOptionsAdvancedTree(context);
 
-            PhRemoveWindowContext(hwndDlg, PH_WINDOW_CONTEXT_DEFAULT);
-        }
-        break;
-    case WM_DPICHANGED_AFTERPARENT:
-        {
-            PhLayoutManagerUpdate(&context->LayoutManager, LOWORD(wParam));
-            PhLayoutManagerLayout(&context->LayoutManager);
-        }
-        break;
-    case WM_SIZE:
-        {
-            PhLayoutManagerLayout(&context->LayoutManager);
-        }
-        break;
-    case WM_COMMAND:
-        {
-            switch (GET_WM_COMMAND_ID(wParam, lParam))
+             PhRemoveWindowContext(hwndDlg, PH_WINDOW_CONTEXT_DEFAULT);
+         }
+         break;
+     case WM_DPICHANGED_AFTERPARENT:
+         {
+             PhLayoutManagerUpdate(&context->LayoutManager, PhGetWindowDpi(hwndDlg));
+             PhLayoutManagerLayout(&context->LayoutManager);
+         }
+         break;
+     case WM_SIZE:
+         {
+             PhLayoutManagerLayout(&context->LayoutManager);
+         }
+         break;
+     case WM_COMMAND:
+         {
+             switch (GET_WM_COMMAND_ID(wParam, lParam))
             {
             case IDOK:
             case IDCANCEL:
@@ -3544,27 +3561,27 @@ INT_PTR CALLBACK PhpOptionsHighlightingDlgProc(
                 PhSetIntegerSetting(ColorItems[i].UseSettingName, ColorItems[i].CurrentUse);
             }
 
-            PhDeleteLayoutManager(&LayoutManager);
-        }
-        break;
-    case WM_DPICHANGED_AFTERPARENT:
-        {
-            PhLayoutManagerUpdate(&LayoutManager, LOWORD(wParam));
-            PhLayoutManagerLayout(&LayoutManager);
-        }
-        break;
-    case WM_SIZE:
-        {
-            PhLayoutManagerLayout(&LayoutManager);
+             PhDeleteLayoutManager(&LayoutManager);
+         }
+         break;
+     case WM_DPICHANGED_AFTERPARENT:
+         {
+             PhLayoutManagerUpdate(&LayoutManager, PhGetWindowDpi(hwndDlg));
+             PhLayoutManagerLayout(&LayoutManager);
+         }
+         break;
+     case WM_SIZE:
+         {
+             PhLayoutManagerLayout(&LayoutManager);
 
-            ExtendedListView_SetColumnWidth(HighlightingListViewHandle, 0, ELVSCW_AUTOSIZE_REMAININGSPACE);
-        }
-        break;
-    case WM_COMMAND:
-        {
-            switch (GET_WM_COMMAND_ID(wParam, lParam))
-            {
-            case IDC_ENABLEALL:
+             ExtendedListView_SetColumnWidth(HighlightingListViewHandle, 0, ELVSCW_AUTOSIZE_REMAININGSPACE);
+         }
+         break;
+     case WM_COMMAND:
+         {
+             switch (GET_WM_COMMAND_ID(wParam, lParam))
+             {
+             case IDC_ENABLEALL:
                 {
                     for (ULONG i = 0; i < RTL_NUMBER_OF(ColorItems); i++)
                     {
@@ -3826,27 +3843,27 @@ INT_PTR CALLBACK PhpOptionsGraphsDlgProc(
                 PhSetIntegerSetting(PhpOptionsGraphColorItems[i].SettingName, PhpOptionsGraphColorItems[i].CurrentColor);
             }
 
-            PhDeleteLayoutManager(&LayoutManager);
-        }
-        break;
-    case WM_DPICHANGED_AFTERPARENT:
-        {
-            PhLayoutManagerUpdate(&LayoutManager, LOWORD(wParam));
-            PhLayoutManagerLayout(&LayoutManager);
-        }
-        break;
-    case WM_SIZE:
-        {
-            PhLayoutManagerLayout(&LayoutManager);
+             PhDeleteLayoutManager(&LayoutManager);
+         }
+         break;
+     case WM_DPICHANGED_AFTERPARENT:
+         {
+             PhLayoutManagerUpdate(&LayoutManager, PhGetWindowDpi(hwndDlg));
+             PhLayoutManagerLayout(&LayoutManager);
+         }
+         break;
+     case WM_SIZE:
+         {
+             PhLayoutManagerLayout(&LayoutManager);
 
-            ExtendedListView_SetColumnWidth(PhpGraphListViewHandle, 0, ELVSCW_AUTOSIZE_REMAININGSPACE);
-        }
-        break;
-    case WM_COMMAND:
-        {
-            switch (GET_WM_COMMAND_ID(wParam, lParam))
-            {
-            case IDC_USEOLDCOLORS:
+             ExtendedListView_SetColumnWidth(PhpGraphListViewHandle, 0, ELVSCW_AUTOSIZE_REMAININGSPACE);
+         }
+         break;
+     case WM_COMMAND:
+         {
+             switch (GET_WM_COMMAND_ID(wParam, lParam))
+             {
+             case IDC_USEOLDCOLORS:
                 {
                     ListView_SetItemState(PhpGraphListViewHandle, -1, 0, LVIS_SELECTED); // deselect all items
 

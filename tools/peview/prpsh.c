@@ -229,13 +229,13 @@ static HWND PvpCreateSecurityButton(
 
 static HFONT PvpCreateFont(
     _In_ PWSTR Name,
-    _In_ ULONG Size,
-    _In_ ULONG Weight,
-    _In_ LONG dpiValue
+    _In_ LONG Size,
+    _In_ LONG Weight,
+    _In_ LONG Dpi
     )
 {
     return CreateFont(
-        -(LONG)PhMultiplyDivide(Size, dpiValue, 72),
+        PhMultiplyDivideSigned(-Size, Dpi, 72),
         0,
         0,
         0,
@@ -478,7 +478,7 @@ VOID PhpInitializePropSheetLayoutStage2(
     dpiValue = PhGetWindowDpi(hwnd);
 
     windowRectangle.Position = PhGetIntegerPairSetting(L"MainWindowPosition");
-    windowRectangle.Size = PhGetScalableIntegerPairSetting(L"MainWindowSize", TRUE, dpiValue)->Pair;
+    windowRectangle.Size = PhGetScalableIntegerPairSetting(L"MainWindowSize", TRUE, dpiValue).Pair;
 
     if (!windowRectangle.Position.X)
         return;

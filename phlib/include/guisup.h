@@ -84,6 +84,27 @@ PhInitializeMonospaceFont(
     );
 
 PHLIBAPI
+HFONT
+NTAPI
+PhCreateApplicationFont(
+    _In_ LONG WindowDpi
+    );
+
+PHLIBAPI
+HFONT
+NTAPI
+PhCreateTreeWindowFont(
+    _In_ LONG WindowDpi
+    );
+
+PHLIBAPI
+HFONT
+NTAPI
+PhCreateMonospaceFont(
+    _In_ LONG WindowDpi
+    );
+
+PHLIBAPI
 HDC
 NTAPI
 PhGetDC(
@@ -598,6 +619,7 @@ PhScaleToDisplay(
     _In_ LONG Scale
     )
 {
+    assert(Scale);
     return PhMultiplyDivideSigned(Value, Scale, USER_DEFAULT_SCREEN_DPI);
 }
 
@@ -616,18 +638,8 @@ PhScaleToDefault(
     _In_ LONG Scale
     )
 {
+    assert(Scale);
     return PhMultiplyDivideSigned(Value, USER_DEFAULT_SCREEN_DPI, Scale);
-}
-
-FORCEINLINE
-LONG
-NTAPI
-PhGetDpi(
-    _In_ LONG Value,
-    _In_ LONG Scale
-    )
-{
-    return PhMultiplyDivideSigned(Value, Scale, USER_DEFAULT_SCREEN_DPI);
 }
 
 PHLIBAPI
@@ -651,12 +663,6 @@ PhGetMonitorDpiFromRect(
     return PhGetMonitorDpi(NULL, &rect);
 }
 
-PHLIBAPI
-LONG
-NTAPI
-PhGetSystemDpi(
-    VOID
-    );
 
 PHLIBAPI
 LONG
@@ -697,28 +703,54 @@ PhGetSizeDpiValue(
 
     if (ScaleToDisplay)
     {
-        if (rect.Left)
-            rect.Left = PhScaleToDisplay(rect.Left, Dpi);
-        if (rect.Top)
-            rect.Top = PhScaleToDisplay(rect.Top, Dpi);
-        if (rect.Width)
-            rect.Width = PhScaleToDisplay(rect.Width, Dpi);
-        if (rect.Height)
-            rect.Height = PhScaleToDisplay(rect.Height, Dpi);
+        rect.Left = PhScaleToDisplay(rect.Left, Dpi);
+        rect.Top = PhScaleToDisplay(rect.Top, Dpi);
+        rect.Width = PhScaleToDisplay(rect.Width, Dpi);
+        rect.Height = PhScaleToDisplay(rect.Height, Dpi);
     }
     else
     {
-        if (rect.Left)
-            rect.Left = PhScaleToDefault(rect.Left, Dpi);
-        if (rect.Top)
-            rect.Top = PhScaleToDefault(rect.Top, Dpi);
-        if (rect.Width)
-            rect.Width = PhScaleToDefault(rect.Width, Dpi);
-        if (rect.Height)
-            rect.Height = PhScaleToDefault(rect.Height, Dpi);
+        rect.Left = PhScaleToDefault(rect.Left, Dpi);
+        rect.Top = PhScaleToDefault(rect.Top, Dpi);
+        rect.Width = PhScaleToDefault(rect.Width, Dpi);
+        rect.Height = PhScaleToDefault(rect.Height, Dpi);
     }
 
     PhRectangleToRect(Rect, &rect);
+}
+
+/**
+ * Scales a RECT representing margins or padding.
+ *
+ * Unlike PhGetSizeDpiValue which treats a RECT as a bounding box and scales its width/height,
+ * this function scales each field (left, top, right, bottom) independently.
+ * Use this function for non-spatial RECTs to avoid rounding errors.
+ */
+FORCEINLINE
+VOID
+PhGetMarginDpiValue(
+    _Inout_ PRECT Margin,
+    _In_ LONG Dpi,
+    _In_ BOOLEAN ScaleToDisplay
+    )
+{
+    if (Dpi == USER_DEFAULT_SCREEN_DPI)
+        return;
+
+    if (ScaleToDisplay)
+    {
+        Margin->left = PhScaleToDisplay(Margin->left, Dpi);
+        Margin->top = PhScaleToDisplay(Margin->top, Dpi);
+        Margin->right = PhScaleToDisplay(Margin->right, Dpi);
+        Margin->bottom = PhScaleToDisplay(Margin->bottom, Dpi);
+    }
+    else
+    {
+        Margin->left = PhScaleToDefault(Margin->left, Dpi);
+        Margin->top = PhScaleToDefault(Margin->top, Dpi);
+        Margin->right = PhScaleToDefault(Margin->right, Dpi);
+        Margin->bottom = PhScaleToDefault(Margin->bottom, Dpi);
+    }
 }
 
 PHLIBAPI
@@ -846,28 +878,6 @@ FORCEINLINE RTL_ATOM PhGetClassInfoEx(
 {
     // Note: GetClassInfoEx returns BOOL but contains the RTL_ATOM (dmex)
     return (RTL_ATOM)GetClassInfoEx(Instance, ClassName, WindowClass);
-}
-
-#define PH_WINDOW_TIMER_DEFAULT 0xF
-
-FORCEINLINE ULONG_PTR PhSetTimer(
-    _In_ HWND WindowHandle,
-    _In_ ULONG_PTR TimerID,
-    _In_ ULONG Elapse,
-    _In_opt_ TIMERPROC TimerProcedure
-    )
-{
-    assert(WindowHandle);
-    return SetTimer(WindowHandle, TimerID, Elapse, TimerProcedure);
-}
-
-FORCEINLINE BOOL PhKillTimer(
-    _In_ HWND WindowHandle,
-    _In_ ULONG_PTR TimerID
-    )
-{
-    assert(WindowHandle);
-    return KillTimer(WindowHandle, TimerID);
 }
 
 FORCEINLINE VOID PhBringWindowToTop(
@@ -1315,13 +1325,13 @@ PhLoadIcon(
     _In_opt_ PVOID ImageBaseAddress,
     _In_ PCWSTR Name,
     _In_ ULONG Flags,
-    _In_opt_ LONG Width,
-    _In_opt_ LONG Height,
-    _In_opt_ LONG SystemDpi
+    _In_ LONG Width,
+    _In_ LONG Height,
+    _In_ LONG WindowDpi
     );
 
 PHLIBAPI
-VOID
+NTSTATUS
 NTAPI
 PhGetStockApplicationIcon(
     _Out_opt_ HICON *SmallIcon,
@@ -3506,7 +3516,16 @@ HFONT
 NTAPI
 PhDuplicateFontUpdateDpi(
     _In_ HFONT Font,
-    _In_ LONG WindowDpi
+    _In_ LONG NewDpi
+    );
+
+PHLIBAPI
+HFONT
+NTAPI
+PhDuplicateFontUpdateDpiEx(
+    _In_ HFONT Font,
+    _In_ LONG NewDpi,
+    _In_ LONG OldDpi
     );
 
 FORCEINLINE VOID PhReplaceWindowFont(

@@ -1403,16 +1403,31 @@ VOID PhGenerateGuid(
     _Out_ PGUID Guid
     )
 {
+    static PH_INITONCE initOnce = PH_INITONCE_INIT;
+    static BOOL(WINAPI *ProcessPrng_I)(PBYTE, SIZE_T) = NULL;
     ULARGE_INTEGER seed;
     // The top/sign bit is always unusable for RtlRandomEx (the result is always unsigned), so we'll
     // take the bottom 24 bits. We need 128 bits in total, so we'll call the function 6 times.
     ULONG random[6];
     ULONG i;
 
-    seed.QuadPart = PhReadPerformanceCounter();
+    if (PhBeginInitOnce(&initOnce))
+    {
+        PVOID baseAddress;
 
-    for (i = 0; i < 6; i++)
-        random[i] = RtlRandomEx(&seed.LowPart);
+        if (baseAddress = PhLoadLibrary(L"bcryptprimitives.dll"))
+            ProcessPrng_I = PhGetDllBaseProcedureAddress(baseAddress, "ProcessPrng", 0);
+
+        PhEndInitOnce(&initOnce);
+    }
+
+    if (!ProcessPrng_I || !ProcessPrng_I((PBYTE)&random[0], sizeof(random)))
+    {
+        seed.QuadPart = PhReadPerformanceCounter();
+
+        for (i = 0; i < 6; i++)
+            random[i] = RtlRandomEx(&seed.LowPart);
+    }
 
     // random[0] is usable
     *(PUSHORT)&Guid->Data1 = (USHORT)random[0];
@@ -6141,7 +6156,7 @@ PSECURITY_DESCRIPTOR PhGetSecurityDescriptorFromString(
             securityDescriptorBuffer,
             securityDescriptorLength
             );
-        assert(securityDescriptorLength == RtlLengthSecurityDescriptor(securityDescriptor));
+        assert(securityDescriptorLength == PhLengthSecurityDescriptor(securityDescriptor));
 
         LocalFree(securityDescriptorBuffer);
     }
@@ -8663,34 +8678,40 @@ HANDLE PhGetNamespaceHandle(
 
     if (PhBeginInitOnce(&initOnce))
     {
-        UCHAR securityDescriptorBuffer[SECURITY_DESCRIPTOR_MIN_LENGTH + 0x70];
+        UCHAR securityDescriptorBuffer[SECURITY_DESCRIPTOR_MIN_LENGTH + sizeof(ACL) + (sizeof(ACCESS_ALLOWED_ACE) + SECURITY_MAX_SID_SIZE) * 4];
+        PSECURITY_DESCRIPTOR securityDescriptor = (PSECURITY_DESCRIPTOR)securityDescriptorBuffer;
+        PACL dacl = (PACL)PTR_ADD_OFFSET(securityDescriptor, SECURITY_DESCRIPTOR_MIN_LENGTH);
         PSID administratorsSid = PhSeAdministratorsSid();
         UNICODE_STRING objectName;
         OBJECT_ATTRIBUTES objectAttributes;
-        PSECURITY_DESCRIPTOR securityDescriptor;
-        ULONG sdAllocationLength;
-        PACL dacl;
+        ULONG daclLength = 0;
+        NTSTATUS status;
 
-        // Create the default namespace DACL.
+        if (!NT_SUCCESS(status = RtlULongAdd(SECURITY_DESCRIPTOR_MIN_LENGTH, sizeof(ACL), &daclLength)))
+            goto CleanupExit;
+        if (!NT_SUCCESS(status = RtlULongAdd(daclLength, UFIELD_OFFSET(ACCESS_ALLOWED_ACE, SidStart) + PhLengthSid(&PhSeLocalSid), &daclLength)))
+            goto CleanupExit;
+        if (!NT_SUCCESS(status = RtlULongAdd(daclLength, UFIELD_OFFSET(ACCESS_ALLOWED_ACE, SidStart) + PhLengthSid(administratorsSid), &daclLength)))
+            goto CleanupExit;
+        if (!NT_SUCCESS(status = RtlULongAdd(daclLength, UFIELD_OFFSET(ACCESS_ALLOWED_ACE, SidStart) + PhLengthSid(&PhSeInteractiveSid), &daclLength)))
+            goto CleanupExit;
+        if (!NT_SUCCESS(status = RtlULongAdd(daclLength, UFIELD_OFFSET(ACCESS_ALLOWED_ACE, SidStart) + PhLengthSid(&PhSeEveryoneSid), &daclLength)))
+            goto CleanupExit;
 
-        sdAllocationLength = SECURITY_DESCRIPTOR_MIN_LENGTH +
-            (ULONG)sizeof(ACL) +
-            (ULONG)sizeof(ACCESS_ALLOWED_ACE) +
-            PhLengthSid(&PhSeLocalSid) +
-            (ULONG)sizeof(ACCESS_ALLOWED_ACE) +
-            PhLengthSid(administratorsSid) +
-            (ULONG)sizeof(ACCESS_ALLOWED_ACE) +
-            PhLengthSid(&PhSeInteractiveSid);
-
-        securityDescriptor = (PSECURITY_DESCRIPTOR)securityDescriptorBuffer;
-        dacl = PTR_ADD_OFFSET(securityDescriptor, SECURITY_DESCRIPTOR_MIN_LENGTH);
-
-        PhCreateSecurityDescriptor(securityDescriptor, SECURITY_DESCRIPTOR_REVISION);
-        PhCreateAcl(dacl, sdAllocationLength - SECURITY_DESCRIPTOR_MIN_LENGTH, ACL_REVISION);
-        PhAddAccessAllowedAce(dacl, ACL_REVISION, DIRECTORY_ALL_ACCESS, &PhSeLocalSid);
-        PhAddAccessAllowedAce(dacl, ACL_REVISION, DIRECTORY_ALL_ACCESS, administratorsSid);
-        PhAddAccessAllowedAce(dacl, ACL_REVISION, DIRECTORY_QUERY | DIRECTORY_TRAVERSE | DIRECTORY_CREATE_OBJECT, &PhSeInteractiveSid);
-        PhSetDaclSecurityDescriptor(securityDescriptor, TRUE, dacl, FALSE);
+        if (!NT_SUCCESS(status = PhCreateSecurityDescriptor(securityDescriptor, SECURITY_DESCRIPTOR_REVISION)))
+            goto CleanupExit;
+        if (!NT_SUCCESS(status = PhCreateAcl(dacl, daclLength - SECURITY_DESCRIPTOR_MIN_LENGTH, ACL_REVISION)))
+            goto CleanupExit;
+        if (!NT_SUCCESS(status = PhAddAccessAllowedAce(dacl, ACL_REVISION, DIRECTORY_ALL_ACCESS, &PhSeLocalSid)))
+            goto CleanupExit;
+        if (!NT_SUCCESS(status = PhAddAccessAllowedAce(dacl, ACL_REVISION, DIRECTORY_ALL_ACCESS, administratorsSid)))
+            goto CleanupExit;
+        if (!NT_SUCCESS(status = PhAddAccessAllowedAce(dacl, ACL_REVISION, DIRECTORY_QUERY | DIRECTORY_TRAVERSE | DIRECTORY_CREATE_OBJECT, &PhSeInteractiveSid)))
+            goto CleanupExit;
+        if (!NT_SUCCESS(status = PhAddAccessAllowedAce(dacl, ACL_REVISION, DIRECTORY_QUERY | DIRECTORY_TRAVERSE | DIRECTORY_CREATE_OBJECT, &PhSeEveryoneSid)))
+            goto CleanupExit;
+        if (!NT_SUCCESS(status = PhSetDaclSecurityDescriptor(securityDescriptor, TRUE, dacl, FALSE)))
+            goto CleanupExit;
 
         RtlInitUnicodeString(&objectName, L"\\BaseNamedObjects\\SystemInformer");
         InitializeObjectAttributes(
@@ -8704,8 +8725,9 @@ HANDLE PhGetNamespaceHandle(
         NtCreateDirectoryObject(&directoryHandle, MAXIMUM_ALLOWED, &objectAttributes);
 
         assert(RtlValidSecurityDescriptor(securityDescriptor));
-        assert(sdAllocationLength < sizeof(securityDescriptorBuffer));
-        assert(RtlLengthSecurityDescriptor(securityDescriptor) < sizeof(securityDescriptorBuffer));
+        assert(daclLength < sizeof(securityDescriptorBuffer));
+        assert(PhLengthSecurityDescriptor(securityDescriptor) < sizeof(securityDescriptorBuffer));
+    CleanupExit:
         PhEndInitOnce(&initOnce);
     }
 

@@ -560,7 +560,7 @@ DOUBLE PhReadTimeStampFrequency(
     // Calculate wait interval in QPC ticks (100ms measurement window)
 
     const LONGLONG calibrationIntervalMs = 100;
-    const LONGLONG calibrationIntervalTicks = (performanceFrequency.QuadPart * calibrationIntervalMs) / 1000;
+    const LONGLONG calibrationIntervalTicks = PhMultiplyDivide((ULONG)performanceFrequency.QuadPart, (ULONG)calibrationIntervalMs, 1000);
 
     // Warm up CPU caches and branch predictors.
 
@@ -2473,27 +2473,29 @@ BOOLEAN PhRemoveEntryHashtable(
 }
 
 /**
- * Generates a hash code for a sequence of bytes.
+ * Generates a 32-bit FNV-1a hash code for a sequence of bytes.
  *
  * \param Bytes A pointer to a byte array.
  * \param Length The number of bytes to hash.
+ * \return 32-bit hash code type.
+ * \remarks This routine conforms to RFC 9923,
  */
 ULONG PhHashBytes(
     _In_reads_(Length) PUCHAR Bytes,
     _In_ SIZE_T Length
     )
 {
-    ULONG hash = 0;
+    ULONG hash = FNV1_32_INIT;
 
     if (Length == 0)
         return hash;
 
-    // FNV-1a algorithm: http://www.isthe.com/chongo/src/fnv/hash_32a.c
+    // FNV-1a algorithm: https://github.com/lcn2/fnv/blob/master/hash_32a.c
 
     while (Length-- != 0)
     {
         hash ^= *Bytes++;
-        hash *= 0x01000193;
+        hash *= FNV_32_PRIME;
     }
 
     return hash;
@@ -4567,6 +4569,7 @@ NTSTATUS PhTlsSetValue(
  *
  * \return The last error code as an unsigned long value.
  */
+_Use_decl_annotations_
 ULONG PhGetLastError(
     VOID
     )

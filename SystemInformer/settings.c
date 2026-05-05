@@ -220,6 +220,7 @@ VOID PhAddDefaultSettings(
     PhpAddStringSetting(SETTING_PROGRAM_INSPECT_EXECUTABLES, L"peview.exe \"%s\"");
     PhpAddIntegerSetting(SETTING_PROPAGATE_CPU_USAGE, L"0");
     PhpAddIntegerSetting(SETTING_RELEASE_CHANNEL, L"0"); // PhReleaseChannel
+    PhpAddStringSetting(SETTING_CLIENT_ID, L"");
     PhpAddIntegerSetting(SETTING_RUN_AS_ENABLE_AUTO_COMPLETE, L"0");
     PhpAddStringSetting(SETTING_RUN_AS_PROGRAM, L"");
     PhpAddStringSetting(SETTING_RUN_AS_USER_NAME, L"");
@@ -291,7 +292,7 @@ VOID PhAddDefaultSettings(
     PhpAddIntegerSetting(SETTING_TREE_LIST_ENABLE_HEADER_TOTALS, L"1");
     PhpAddIntegerSetting(SETTING_TREE_LIST_ENABLE_DRAG_REORDER, L"0");
     PhpAddIntegerSetting(SETTING_UPDATE_INTERVAL, L"3e8"); // 1000ms
-    PhpAddIntegerSetting(SETTING_ENABLE_HIGH_RESOLUTION_PROVIDER_TIMER, L"1");
+    PhpAddIntegerSetting(SETTING_ENABLE_HIGH_RESOLUTION, L"1");
     PhpAddStringSetting(SETTING_USER_LIST_TREE_LIST_COLUMNS, L"");
     PhpAddIntegerPairSetting(SETTING_USER_LIST_WINDOW_POSITION, L"0,0");
     PhpAddScalableIntegerPairSetting(SETTING_USER_LIST_WINDOW_SIZE, L"@96|550,420");
