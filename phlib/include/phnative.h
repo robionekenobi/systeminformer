@@ -2529,7 +2529,6 @@ PhGetDaclSecurityDescriptor(
 
     if (present = BooleanFlagOn(securityDescriptor->Control, SE_DACL_PRESENT))
     {
-        *DaclPresent = TRUE;
         defaulted = BooleanFlagOn(securityDescriptor->Control, SE_DACL_DEFAULTED);
 
         if (BooleanFlagOn(securityDescriptor->Control, SE_SELF_RELATIVE))
@@ -7027,8 +7026,7 @@ NTAPI
 PhCreateWaitableTimer(
     _Out_ PHANDLE TimerHandle,
     _In_ ACCESS_MASK DesiredAccess,
-    _In_ TIMER_TYPE TimerType,
-    _In_ BOOLEAN HighResolution
+    _In_ TIMER_TYPE TimerType
     );
 
 PHLIBAPI
@@ -7040,8 +7038,27 @@ PhSetWaitableTimer(
     _In_opt_ PLARGE_INTEGER Period,
     _In_opt_ PTIMER_APC_ROUTINE TimerApcRoutine,
     _In_opt_ PVOID TimerContext,
-    _In_ BOOLEAN ResumeTimer,
-    _In_ BOOLEAN HighResolution
+    _In_ BOOLEAN ResumeTimer
+    );
+
+#define PH_WINDOW_TIMER_DEFAULT 0xF
+
+PHLIBAPI
+ULONG_PTR
+NTAPI
+PhSetTimer(
+    _In_ HWND WindowHandle,
+    _In_ ULONG_PTR TimerID,
+    _In_ ULONG Elapse,
+    _In_opt_ TIMERPROC TimerProcedure
+    );
+
+PHLIBAPI
+BOOL
+NTAPI
+PhKillTimer(
+    _In_ HWND WindowHandle,
+    _In_ ULONG_PTR TimerID
     );
 
 PHLIBAPI
