@@ -124,6 +124,7 @@ namespace CustomBuildTool
             var entryOptions = new ZipWriterEntryOptions
             {
                 CompressionType = CompressionType,
+                CompressionLevel = CompressionType == CompressionType.None ? 0 : 6,
                 ModificationDateTime = Build.BuildDateTime
             };
 
