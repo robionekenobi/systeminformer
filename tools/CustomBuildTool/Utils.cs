@@ -961,7 +961,7 @@ namespace CustomBuildTool
 
             string encodedCommand = Convert.ToBase64String(Encoding.Unicode.GetBytes(command));
 
-            Environment.SetEnvironmentVariable("VSCMD_SKIP_SENDTELEMETRY", "1", EnvironmentVariableTarget.User);
+            //Environment.SetEnvironmentVariable("VSCMD_SKIP_SENDTELEMETRY", "1", EnvironmentVariableTarget.User);
 
             return Win32.CreateProcess(
                 powershellFile,
