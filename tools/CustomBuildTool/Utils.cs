@@ -21,7 +21,7 @@ namespace CustomBuildTool
     /// handling Windows SDK paths. Many methods assume Windows environments and may rely on environment variables or
     /// registry keys. Thread safety is not guaranteed for all static members; use caution when accessing shared
     /// resources concurrently.</remarks>
-    public static unsafe class Utils
+    public static unsafe partial class Utils
     {
         private static readonly Dictionary<string, string> EnvironmentBlock = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         public static readonly Encoding UTF8NoBOM = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
@@ -187,21 +187,16 @@ namespace CustomBuildTool
         /// architecture, the method returns 3 and sets <paramref name="OutputString"/> to an error message. Otherwise,
         /// the output from the MSBuild process is captured in <paramref name="OutputString"/> if <paramref
         /// name="RedirectOutput"/> is <see langword="true"/>.</remarks>
-        /// <param name="Command">The MSBuild command-line arguments to execute. This string is passed directly to the MSBuild process.</param>
+        /// <param name="Arguments">The MSBuild command-line arguments to execute.</param>
         /// <param name="Flags">The build flags that determine which MSBuild executable to use and how the command is executed.</param>
         /// <param name="OutputString">When the method returns, contains the output produced by the MSBuild process. If the MSBuild executable
         /// cannot be found, contains an error message.</param>
         /// <param name="RedirectOutput">Indicates whether the output from the MSBuild process should be redirected and captured. The default is <see
         /// langword="true"/>.</param>
         /// <returns>The exit code returned by the MSBuild process. Returns 3 if the MSBuild executable cannot be found.</returns>
-        public static int ExecuteMsbuildCommand(string Command, BuildFlags Flags, out string OutputString, bool RedirectOutput = true)
+        public static int ExecuteMsbuildCommand(IEnumerable<string> Arguments, BuildFlags Flags, out string OutputString, bool RedirectOutput = true)
         {
-            string file = null;
-
-            if (string.IsNullOrWhiteSpace(file))
-            {
-                file = GetMsbuildFilePath(Flags, RuntimeInformation.ProcessArchitecture);
-            }
+            string file = GetMsbuildFilePath(Flags, RuntimeInformation.ProcessArchitecture);
 
             if (string.IsNullOrWhiteSpace(file))
             {
@@ -209,7 +204,7 @@ namespace CustomBuildTool
                 return 3; // file not found.
             }
 
-            return Win32.CreateProcess(file, Command, out OutputString, false, RedirectOutput);
+            return Win32.CreateProcess(file, Arguments, out OutputString, false, RedirectOutput);
         }
 
         /// <summary>
@@ -218,24 +213,9 @@ namespace CustomBuildTool
         /// <remarks>The method locates the vswhere executable and runs the specified command. If the
         /// vswhere file path is invalid, the method returns null and displays an error message. The output is trimmed
         /// to remove leading and trailing whitespace.</remarks>
-        /// <param name="Command">The command-line arguments to pass to the vswhere executable. Cannot be null or empty.</param>
+        /// <param name="Arguments">The command-line arguments to pass to the vswhere executable. Cannot be null or empty.</param>
         /// <returns>A string containing the trimmed output from the vswhere command. Returns null if the vswhere executable
         /// cannot be found.</returns>
-        public static string ExecuteVsWhereCommand(string Command)
-        {
-            string file = GetVswhereFilePath();
-
-            if (string.IsNullOrWhiteSpace(file))
-            {
-                Program.PrintColorMessage("[ExecuteVsWhereCommand] VswhereFilePath is invalid.", ConsoleColor.Red);
-                return null;
-            }
-
-            Win32.CreateProcess(file, Command, out var outputString, false);
-
-            return outputString.Trim();
-        }
-
         public static string ExecuteVsWhereCommand(IEnumerable<string> Arguments)
         {
             string file = GetVswhereFilePath();
@@ -555,32 +535,9 @@ namespace CustomBuildTool
         /// found, the method returns null and prints an error message to the console. The output string is trimmed
         /// before being returned.</remarks>
         /// <param name="WorkingFolder">The path to the folder where the Git command will be executed. Must be a valid Git working directory.</param>
-        /// <param name="Command">The Git command to execute. This should be a valid command supported by the Git executable.</param>
+        /// <param name="Arguments">The Git command to execute. This should be a valid command supported by the Git executable.</param>
         /// <returns>A string containing the trimmed output of the executed Git command. Returns null if the working folder or
         /// Git executable path is invalid.</returns>
-        public static string ExecuteGitCommand(string WorkingFolder, string Command)
-        {
-            string currentGitDirectory = GetGitWorkPath(WorkingFolder);
-
-            if (string.IsNullOrWhiteSpace(currentGitDirectory))
-            {
-                Program.PrintColorMessage("[ExecuteGitCommand] WorkingFolder is invalid.", ConsoleColor.Red);
-                return null;
-            }
-
-            string currentGitPath = GetGitFilePath();
-
-            if (string.IsNullOrWhiteSpace(currentGitPath))
-            {
-                Program.PrintColorMessage("[ExecuteGitCommand] GitFilePath is invalid.", ConsoleColor.Red);
-                return null;
-            }
-
-            Win32.CreateProcess(currentGitPath, $"{currentGitDirectory} {Command}", out var outputString, false);
-
-            return outputString.Trim();
-        }
-
         public static string ExecuteGitCommand(string WorkingFolder, IEnumerable<string> Arguments)
         {
             if (string.IsNullOrWhiteSpace(WorkingFolder) || !Directory.Exists(WorkingFolder))
@@ -936,14 +893,15 @@ namespace CustomBuildTool
         /// Executes a CMake command in a Visual Studio environment, initializing the required build tools before
         /// running the command.
         /// </summary>
-        /// <remarks>This method sets up the Visual Studio build environment by calling 'vcvarsall.bat'
+        /// <remarks>This method sets up the Visual Studio build environment by calling 'Enter-VsDevShell'
         /// for the appropriate architecture before executing the CMake command. The exit code can be used to determine
         /// success or failure of the operation.</remarks>
-        /// <param name="Command">The CMake command line arguments to execute. Must specify the desired build configuration and architecture.</param>
+        /// <param name="Arguments">The CMake command line arguments to execute. Must specify the desired build configuration and architecture.</param>
         /// <returns>The exit code returned by the CMake process. Returns <see cref="int.MaxValue"/> if required tools are not
         /// found or initialization fails.</returns>
-        public static int ExecuteCMakeCommand(string Command)
+        public static int ExecuteCMakeCommand(IEnumerable<string> Arguments)
         {
+            string[] arguments = Arguments?.ToArray() ?? [];
             string cmakeFile = GetCMakeFilePath();
             if (string.IsNullOrWhiteSpace(cmakeFile))
             {
@@ -958,27 +916,65 @@ namespace CustomBuildTool
                 return int.MaxValue;
             }
 
-            string vcvarsall = Path.Join([instance.Path, "VC\\Auxiliary\\Build\\vcvarsall.bat"]);
+            string vsDevShell = Path.Join([instance.Path, "Common7\\Tools\\Microsoft.VisualStudio.DevShell.dll"]);
             string arch = null;
 
-            if (!File.Exists(vcvarsall))
+            if (!File.Exists(vsDevShell))
             {
-                Program.PrintColorMessage("[ExecuteCMakeCommand] vcvarsall.bat not found.", ConsoleColor.Red);
+                Program.PrintColorMessage("[ExecuteCMakeCommand] Microsoft.VisualStudio.DevShell.dll not found.", ConsoleColor.Red);
                 return int.MaxValue;
             }
 
-            if (Command.Contains("msvc-x86", StringComparison.OrdinalIgnoreCase) || Command.Contains("Win32", StringComparison.OrdinalIgnoreCase))
-                arch = "amd64_x86";
-            else if (Command.Contains("msvc-arm64", StringComparison.OrdinalIgnoreCase) || Command.Contains("ARM64", StringComparison.OrdinalIgnoreCase))
-                arch = "amd64_arm64";
-            else
-                arch = "amd64";
+            foreach (string argument in arguments)
+            {
+                if (argument.Contains("msvc-x86", StringComparison.OrdinalIgnoreCase) || argument.Contains("Win32", StringComparison.OrdinalIgnoreCase))
+                {
+                    arch = "x86";
+                    break;
+                }
 
-            // We need to run vcvarsall.bat and then cmake in the same session.
-            // Using cmd /c "call vcvarsall.bat arch && cmake ..."
-            string fullCommand = $"call \"{vcvarsall}\" {arch} && \"{cmakeFile}\" {Command}";
+                if (argument.Contains("msvc-arm64", StringComparison.OrdinalIgnoreCase) || argument.Contains("ARM64", StringComparison.OrdinalIgnoreCase))
+                {
+                    arch = "arm64";
+                    break;
+                }
+            }
 
-            return Win32.CreateProcess("cmd.exe", ["/c", fullCommand], out _, false, false);
+            arch ??= "amd64";
+
+            string powershellFile = Win32.SearchPath("pwsh.exe") ?? Win32.SearchPath("powershell.exe");
+            if (string.IsNullOrWhiteSpace(powershellFile))
+            {
+                Program.PrintColorMessage("[ExecuteCMakeCommand] PowerShell not found.", ConsoleColor.Red);
+                return int.MaxValue;
+            }
+
+            // We need to run Enter-VsDevShell and then cmake in the same session.
+            string command = string.Concat(
+                "$ErrorActionPreference = 'Stop'; $VerbosePreference = 'Continue'; ",
+                "Import-Module ", QuotePowerShellArgument(vsDevShell), "; ",
+                "Enter-VsDevShell -VsInstallPath ", QuotePowerShellArgument(instance.Path), " -Arch ", QuotePowerShellArgument(arch), " -HostArch amd64 -SkipAutomaticLocation; ",
+                "& ", QuotePowerShellArgument(cmakeFile), " @(",
+                string.Join(", ", arguments.Select(QuotePowerShellArgument)),
+                "); exit $LASTEXITCODE"
+                );
+
+            string encodedCommand = Convert.ToBase64String(Encoding.Unicode.GetBytes(command));
+
+            Environment.SetEnvironmentVariable("VSCMD_SKIP_SENDTELEMETRY", "1", EnvironmentVariableTarget.User);
+
+            return Win32.CreateProcess(
+                powershellFile,
+                ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encodedCommand],
+                out _,
+                false,
+                false
+                );
+        }
+
+        private static string QuotePowerShellArgument(string Argument)
+        {
+            return $"'{Argument?.Replace("'", "''", StringComparison.OrdinalIgnoreCase)}'";
         }
 
         /// <summary>
@@ -987,9 +983,9 @@ namespace CustomBuildTool
         /// <remarks>The returned output is trimmed and consecutive blank lines are reduced to a single
         /// blank line. This method does not throw exceptions for invalid tool paths; instead, it returns null and
         /// prints an error message.</remarks>
-        /// <param name="Command">The command-line arguments to pass to the MakeAppx tool. Cannot be null or empty.</param>
+        /// <param name="Arguments">The command-line arguments to pass to the MakeAppx tool. Cannot be null or empty.</param>
         /// <returns>A string containing the output from the MakeAppx tool. Returns null if the tool path is invalid.</returns>
-        public static string ExecuteMsixCommand(string Command)
+        public static string ExecuteMsixCommand(IEnumerable<string> Arguments)
         {
             string file = GetMakeAppxPath();
 
@@ -999,7 +995,7 @@ namespace CustomBuildTool
                 return null;
             }
 
-            Win32.CreateProcess(file, Command, out var outputString, false);
+            Win32.CreateProcess(file, Arguments, out var outputString, false);
 
             return outputString.Replace("\r\n\r\n", "\r\n", StringComparison.OrdinalIgnoreCase).Trim();
         }
@@ -1081,9 +1077,9 @@ namespace CustomBuildTool
         /// <summary>
         /// Executes a command using symstore.exe and returns the process exit code.
         /// </summary>
-        /// <param name="Command">The command-line arguments to pass to symstore.exe.</param>
+        /// <param name="Arguments">The command-line arguments to pass to symstore.exe.</param>
         /// <returns>The exit code of the process, or int.MaxValue if symstore.exe is invalid or not found.</returns>
-        public static int ExecuteSymStoreCommand(string Command)
+        public static int ExecuteSymStoreCommand(IEnumerable<string> Arguments)
         {
             string file = GetSymStorePath();
 
@@ -1099,7 +1095,7 @@ namespace CustomBuildTool
                 return int.MaxValue;
             }
 
-            return Win32.CreateProcess(file, Command, out _, false, false);
+            return Win32.CreateProcess(file, Arguments, out _, false, false);
         }
 
         /// <summary>
@@ -1162,9 +1158,9 @@ namespace CustomBuildTool
         /// Executes a command using the Visual Studio Developer Environment (devenv.exe) and returns the process exit
         /// code.
         /// </summary>
-        /// <param name="Command">The command-line arguments to pass to devenv.exe.</param>
+        /// <param name="Arguments">The command-line arguments to pass to devenv.exe.</param>
         /// <returns>The exit code of the process, or Int32.MaxValue if the devenv.exe path is invalid.</returns>
-        public static int ExecuteDevEnvCommand(string Command)
+        public static int ExecuteDevEnvCommand(IEnumerable<string> Arguments)
         {
             string currentDevEnvPath = GetDevEnvPath();
 
@@ -1174,7 +1170,7 @@ namespace CustomBuildTool
                 return int.MaxValue;
             }
 
-            return Win32.CreateProcess(currentDevEnvPath, Command, out _, false, false);
+            return Win32.CreateProcess(currentDevEnvPath, Arguments, out _, false, false);
         }
 
         //public static string GetMsbuildFilePath()

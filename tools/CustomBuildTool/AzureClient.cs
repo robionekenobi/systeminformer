@@ -987,7 +987,7 @@ namespace CustomBuildTool
             // Try to split certs and key; attach the first cert with the private key
             string certificatePem = ExtractPemBlock(PemContent, "CERTIFICATE");
             if (certificatePem is null)
-                throw new CryptographicException("No CERTIFICATE block found in PEM.");
+                throw new System.Security.Cryptography.CryptographicException("No CERTIFICATE block found in PEM.");
 
             string privateKeyPem = ExtractPemBlock(PemContent, "ENCRYPTED PRIVATE KEY")
                          ?? ExtractPemBlock(PemContent, "PRIVATE KEY")
@@ -1021,7 +1021,7 @@ namespace CustomBuildTool
             }
             catch { }
 
-            throw new CryptographicException("Unsupported or invalid private key in PEM.");
+            throw new System.Security.Cryptography.CryptographicException("Unsupported or invalid private key in PEM.");
         }
 
         /// <summary>

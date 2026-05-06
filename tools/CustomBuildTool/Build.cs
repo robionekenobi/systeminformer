@@ -1174,20 +1174,61 @@ namespace CustomBuildTool
                 string toolchainSuffix = GetToolchainSuffix(Flags);
                 string zipFilePath = Path.Join([Build.BuildOutputFolder, $"systeminformer{toolchainSuffix}-symbols-package.zip"]);
 
-                Win32.DeleteFile(
-                    zipFilePath
-                    );
+                Win32.DeleteFile(zipFilePath);
+
                 Utils.CreateOutputDirectory();
 
+                Utils.ExecuteSymStoreCommand(    
+                [
+                    "add",
+                    "-:REL",
+                    "/r",
+                    "/f",
+                    "bin\\Release32\\*.*",
+                    "/s",
+                    "build\\output\\symbols",
+                    "/t",
+                    "SystemInformer",
+                    "/v",
+                    Build.BuildLongVersion,
+                    "/c",
+                    $"32bit-{Build.BuildCommitHash}",
+                    "/o"
+                ]);
                 Utils.ExecuteSymStoreCommand(
-                    @$"add -:REL /r /f ""bin\\Release32\\*.*"" /s ""build\\output\\symbols"" /t SystemInformer /v ""{Build.BuildLongVersion}"" /c ""32bit-{Build.BuildCommitHash}"" /o"
-                    );
+                [
+                    "add",
+                    "-:REL",
+                    "/r",
+                    "/f",
+                    "bin\\Release64\\*.*",
+                    "/s",
+                    "build\\output\\symbols",
+                    "/t",
+                    "SystemInformer",
+                    "/v",
+                    Build.BuildLongVersion,
+                    "/c",
+                    $"64bit-{Build.BuildCommitHash}",
+                    "/o"
+                ]);
                 Utils.ExecuteSymStoreCommand(
-                    @$"add -:REL /r /f ""bin\\Release64\\*.*"" /s ""build\\output\\symbols"" /t SystemInformer /v ""{Build.BuildLongVersion}"" /c ""64bit-{Build.BuildCommitHash}"" /o"
-                    );
-                Utils.ExecuteSymStoreCommand(
-                    @$"add -:REL /r /f ""bin\\ReleaseARM64\\*.*"" /s ""build\\output\\symbols"" /t SystemInformer /v ""{Build.BuildLongVersion}"" /c ""arm64-{Build.BuildCommitHash}"" /o"
-                    );
+                [
+                    "add",
+                    "-:REL",
+                    "/r",
+                    "/f",
+                    "bin\\ReleaseARM64\\*.*",
+                    "/s",
+                    "build\\output\\symbols",
+                    "/t",
+                    "SystemInformer",
+                    "/v",
+                    Build.BuildLongVersion,
+                    "/c",
+                    $"arm64-{Build.BuildCommitHash}",
+                    "/o"
+                ]);
 
                 Program.PrintColorMessage("Building symbols-package.zip...", ConsoleColor.Cyan, false);
 
@@ -1297,19 +1338,27 @@ namespace CustomBuildTool
         }
 
         /// <summary>
-        /// Constructs the MSBuild command line string for building a solution with the specified platform, flags, and channel.
+        /// Constructs the MSBuild command line arguments for building a solution with the specified platform, flags, and channel.
         /// </summary>
         /// <param name="Solution">The solution file to build.</param>
         /// <param name="Platform">The target platform (e.g., Win32, x64, ARM64).</param>
         /// <param name="Flags">Build flags indicating which configurations to process.</param>
         /// <param name="Channel">Optional release channel.</param>
-        /// <returns>The constructed MSBuild command line string.</returns>
-        private static string MsbuildCommandString(string Solution, string Platform, BuildFlags Flags, string Channel = null)
+        /// <returns>The constructed MSBuild command line arguments.</returns>
+        private static string[] MsbuildCommandArguments(string Solution, string Platform, BuildFlags Flags, string Channel = null)
         {
             List<string> preprocessorOptionsList = new List<string>();
-            StringBuilder commandLineBuilder = new StringBuilder(0x100);
             StringBuilder preprocessorOptionsBuilder = new StringBuilder(0x100);
             StringBuilder linkerOptionsBuilder = new StringBuilder(0x100);
+            List<string> arguments =
+            [
+                "/m",
+                "/nologo",
+                "/nodereuse:false",
+                $"/verbosity:{(Build.BuildToolsDebug ? "diagnostic" : "minimal")}",
+                $"/p:Platform={Platform}",
+                $"/p:Configuration={(Flags.HasFlag(BuildFlags.BuildDebug) ? "Debug" : "Release")}"
+            ];
 
             if (Flags.HasFlag(BuildFlags.BuildApi))
                 preprocessorOptionsList.Add("PH_BUILD_API");
@@ -1329,30 +1378,27 @@ namespace CustomBuildTool
                 preprocessorOptionsList.Add($"PHAPP_VERSION_REVISION=\"{Build.BuildVersionRevision()}\"");
 
             if (!string.IsNullOrWhiteSpace(Build.BuildSourceLink))
-                linkerOptionsBuilder.Append($"/SOURCELINK:\"{Build.BuildSourceLink}\" ");
+                linkerOptionsBuilder.Append($"/SOURCELINK:\"{Build.BuildSourceLink}\"");
 
             preprocessorOptionsBuilder.AppendJoin(";", preprocessorOptionsList);
 
-            commandLineBuilder.Append($"/m /nologo /nodereuse:false /verbosity:{(Build.BuildToolsDebug ? "diagnostic" : "minimal")} ");
-            commandLineBuilder.Append($"/p:Platform={Platform} /p:Configuration={(Flags.HasFlag(BuildFlags.BuildDebug) ? "Debug" : "Release")} ");
-
             if (preprocessorOptionsBuilder.Length > 0)
-                commandLineBuilder.Append($"/p:ExternalPreprocessorOptions=\"{preprocessorOptionsBuilder.ToString()}\" ");
+                arguments.Add($"/p:ExternalPreprocessorOptions={preprocessorOptionsBuilder}");
             if (linkerOptionsBuilder.Length > 0)
-                commandLineBuilder.Append($"/p:ExternalLinkerOptions=\"{linkerOptionsBuilder.ToString()}\" ");
+                arguments.Add($"/p:ExternalLinkerOptions={linkerOptionsBuilder}");
             if (!string.IsNullOrWhiteSpace(Build.BuildSimdExtensions))
-                commandLineBuilder.Append($"/p:ExternalSimdOptions=\"{Build.BuildSimdExtensions}\" ");
+                arguments.Add($"/p:ExternalSimdOptions={Build.BuildSimdExtensions}");
 
-            commandLineBuilder.Append($"/bl:build/output/logs/{Utils.GetBuildLogPath(Solution, Platform, Flags)}.binlog ");
+            arguments.Add($"/bl:build/output/logs/{Utils.GetBuildLogPath(Solution, Platform, Flags)}.binlog");
 
             if (!Build.BuildRedirectOutput && !Build.BuildIntegration)
             {
-                commandLineBuilder.Append("-terminalLogger:on ");
+                arguments.Add("-terminalLogger:on");
             }
 
-            commandLineBuilder.Append(Solution);
+            arguments.Add(Solution);
 
-            return commandLineBuilder.ToString();
+            return arguments.ToArray();
         }
 
         /// <summary>
@@ -1371,11 +1417,11 @@ namespace CustomBuildTool
             Program.PrintColorMessage(Platform, ConsoleColor.Green, false, Flags);
             Program.PrintColorMessage(")...", ConsoleColor.Cyan, true, Flags);
 
-            string buildCommandLineString = MsbuildCommandString(Solution, Platform, Flags, Channel);
+            string[] buildCommandArguments = MsbuildCommandArguments(Solution, Platform, Flags, Channel);
 
             if (Build.BuildRedirectOutput && !Build.BuildIntegration)
             {
-                int exitCodeValue = Utils.ExecuteMsbuildCommand(buildCommandLineString, Flags, out string errorOutputString);
+                int exitCodeValue = Utils.ExecuteMsbuildCommand(buildCommandArguments, Flags, out string errorOutputString);
 
                 if (exitCodeValue != 0)
                 {
@@ -1385,7 +1431,7 @@ namespace CustomBuildTool
             }
             else
             {
-                int exitCodeValue = Utils.ExecuteMsbuildCommand(buildCommandLineString, Flags, out _, false);
+                int exitCodeValue = Utils.ExecuteMsbuildCommand(buildCommandArguments, Flags, out _, false);
 
                 if (!Build.BuildRedirectOutput && !Build.BuildIntegration)
                 {
@@ -1623,24 +1669,36 @@ namespace CustomBuildTool
             // Generate
             //
 
-            StringBuilder generateArgsBuilder = new StringBuilder(256);
-            generateArgsBuilder.Append("-G \"");
-            generateArgsBuilder.Append(Utils.GetGeneratorString(Generator));
-            generateArgsBuilder.Append("\" -S \"");
-            generateArgsBuilder.Append(Build.BuildWorkingFolder);
-            generateArgsBuilder.Append("\" -B \"");
-            generateArgsBuilder.Append(buildFolder);
-            generateArgsBuilder.Append("\" --toolchain \"");
-            generateArgsBuilder.Append(toolchainFile);
-            generateArgsBuilder.Append("\" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DSI_WITH_CORE=ON -DSI_WITH_PLUGINS=ON");
+            string[] generateArgs = Generator == BuildGenerator.Ninja
+                ? [
+                    "-G",
+                    Utils.GetGeneratorString(Generator),
+                    "-S",
+                    Build.BuildWorkingFolder,
+                    "-B",
+                    buildFolder,
+                    "--toolchain",
+                    toolchainFile,
+                    "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+                    "-DSI_WITH_CORE=ON",
+                    "-DSI_WITH_PLUGINS=ON",
+                    $"-DCMAKE_BUILD_TYPE={BuildConfig}"
+                ]
+                : [
+                    "-G",
+                    Utils.GetGeneratorString(Generator),
+                    "-S",
+                    Build.BuildWorkingFolder,
+                    "-B",
+                    buildFolder,
+                    "--toolchain",
+                    toolchainFile,
+                    "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+                    "-DSI_WITH_CORE=ON",
+                    "-DSI_WITH_PLUGINS=ON"
+                ];
 
-            if (Generator == BuildGenerator.Ninja)
-            {
-                generateArgsBuilder.Append(" -DCMAKE_BUILD_TYPE=");
-                generateArgsBuilder.Append(BuildConfig);
-            }
-
-            int errorCode = Utils.ExecuteCMakeCommand(generateArgsBuilder.ToString());
+            int errorCode = Utils.ExecuteCMakeCommand(generateArgs);
             if (errorCode != 0)
             {
                 Program.PrintColorMessage($"[ERROR] CMake generate failed ({errorCode})", ConsoleColor.Red, true, verboseFlags);
@@ -1660,11 +1718,25 @@ namespace CustomBuildTool
             Program.PrintColorMessage(BuildConfig, ConsoleColor.Green, false, Flags);
             Program.PrintColorMessage(")", ConsoleColor.Cyan, true, Flags);
 
-            string cmakeBuildOpts = Generator == BuildGenerator.VisualStudio
-                ? $" -- /m /p:Platform={Utils.CMakeGetPlatform(Toolchain)} -terminalLogger:auto"
-                : string.Empty;
+            string[] buildArgs = Generator == BuildGenerator.VisualStudio
+                ? [
+                    "--build",
+                    buildFolder,
+                    "--config",
+                    BuildConfig,
+                    "--",
+                    "/m",
+                    $"/p:Platform={Utils.CMakeGetPlatform(Toolchain)}",
+                    "-terminalLogger:auto"
+                ]
+                : [
+                    "--build",
+                    buildFolder,
+                    "--config",
+                    BuildConfig
+                ];
 
-            errorCode = Utils.ExecuteCMakeCommand($"--build \"{buildFolder}\" --config {BuildConfig}{cmakeBuildOpts}");
+            errorCode = Utils.ExecuteCMakeCommand(buildArgs);
             if (errorCode != 0)
             {
                 Program.PrintColorMessage($"[ERROR] CMake build failed ({errorCode})", ConsoleColor.Red, true, verboseFlags);
@@ -1830,7 +1902,14 @@ namespace CustomBuildTool
                 Program.PrintColorMessage("Building systeminformer-build-package-x32.msix...", ConsoleColor.Cyan, false);
 
                 string result = Utils.ExecuteMsixCommand(
-                    $"pack /o /f {BuildWorkingFolder}\\tools\\msix\\MsixPackage32.map /p {BuildOutputFolder}\\systeminformer-build-package-x32.msix"
+                    [
+                        "pack",
+                        "/o",
+                        "/f",
+                        $"{BuildWorkingFolder}\\tools\\msix\\MsixPackage32.map",
+                        "/p",
+                        $"{BuildOutputFolder}\\systeminformer-build-package-x32.msix"
+                    ]
                     );
 
                 if (!result.EndsWith("Package creation succeeded.", StringComparison.OrdinalIgnoreCase))
@@ -1848,7 +1927,14 @@ namespace CustomBuildTool
                 Program.PrintColorMessage("Building systeminformer-build-package-x64.msix...", ConsoleColor.Cyan, false);
 
                 string result = Utils.ExecuteMsixCommand(
-                    $"pack /o /f {BuildWorkingFolder}\\tools\\msix\\MsixPackage64.map /p {BuildOutputFolder}\\systeminformer-build-package-x64.msix"
+                    [
+                        "pack",
+                        "/o",
+                        "/f",
+                        $"{BuildWorkingFolder}\\tools\\msix\\MsixPackage64.map",
+                        "/p",
+                        $"{BuildOutputFolder}\\systeminformer-build-package-x64.msix"
+                    ]
                     );
 
                 if (!result.EndsWith("Package creation succeeded.", StringComparison.OrdinalIgnoreCase))
@@ -1881,7 +1967,13 @@ namespace CustomBuildTool
                 }
 
                 string result = Utils.ExecuteMsixCommand(
-                    $"bundle /f {BuildWorkingFolder}\\tools\\msix\\bundle.map /p {BuildOutputFolder}\\systeminformer-build-package.msixbundle"
+                    [
+                        "bundle",
+                        "/f",
+                        $"{BuildWorkingFolder}\\tools\\msix\\bundle.map",
+                        "/p",
+                        $"{BuildOutputFolder}\\systeminformer-build-package.msixbundle"
+                    ]
                     );
 
                 if (!result.EndsWith("Bundle creation succeeded.", StringComparison.OrdinalIgnoreCase))

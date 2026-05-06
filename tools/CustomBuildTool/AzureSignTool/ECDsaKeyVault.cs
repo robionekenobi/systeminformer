@@ -552,19 +552,19 @@ namespace CustomBuildTool
             int offset = 0;
 
             if (ReadByte(Signature, ref offset) != 0x30)
-                throw new CryptographicException("Invalid ECDSA signature.");
+                throw new System.Security.Cryptography.CryptographicException("Invalid ECDSA signature.");
 
             int sequenceLength = ReadDerLength(Signature, ref offset);
             int sequenceEnd = offset + sequenceLength;
 
             if (sequenceEnd != Signature.Length)
-                throw new CryptographicException("Invalid ECDSA signature.");
+                throw new System.Security.Cryptography.CryptographicException("Invalid ECDSA signature.");
 
             ReadOnlySpan<byte> r = ReadDerInteger(Signature, ref offset);
             ReadOnlySpan<byte> s = ReadDerInteger(Signature, ref offset);
 
             if (offset != sequenceEnd)
-                throw new CryptographicException("Invalid ECDSA signature.");
+                throw new System.Security.Cryptography.CryptographicException("Invalid ECDSA signature.");
 
             int fieldSize = GetFieldSizeBytes();
             byte[] signature = new byte[fieldSize * 2];
@@ -580,7 +580,7 @@ namespace CustomBuildTool
             int fieldSize = GetFieldSizeBytes();
 
             if (Signature.Length != fieldSize * 2)
-                throw new CryptographicException("Invalid ECDSA signature.");
+                throw new System.Security.Cryptography.CryptographicException("Invalid ECDSA signature.");
 
             ReadOnlySpan<byte> r = Signature.Slice(0, fieldSize);
             ReadOnlySpan<byte> s = Signature.Slice(fieldSize, fieldSize);
@@ -607,7 +607,7 @@ namespace CustomBuildTool
         private static byte ReadByte(ReadOnlySpan<byte> Data, ref int Offset)
         {
             if (Offset >= Data.Length)
-                throw new CryptographicException("Invalid ECDSA signature.");
+                throw new System.Security.Cryptography.CryptographicException("Invalid ECDSA signature.");
 
             return Data[Offset++];
         }
@@ -622,7 +622,7 @@ namespace CustomBuildTool
             int lengthByteCount = firstLengthByte & 0x7f;
 
             if (lengthByteCount == 0 || lengthByteCount > sizeof(int))
-                throw new CryptographicException("Invalid ECDSA signature.");
+                throw new System.Security.Cryptography.CryptographicException("Invalid ECDSA signature.");
 
             int length = 0;
 
@@ -637,12 +637,12 @@ namespace CustomBuildTool
         private static ReadOnlySpan<byte> ReadDerInteger(ReadOnlySpan<byte> Data, ref int Offset)
         {
             if (ReadByte(Data, ref Offset) != 0x02)
-                throw new CryptographicException("Invalid ECDSA signature.");
+                throw new System.Security.Cryptography.CryptographicException("Invalid ECDSA signature.");
 
             int length = ReadDerLength(Data, ref Offset);
 
             if (length <= 0 || Offset + length > Data.Length)
-                throw new CryptographicException("Invalid ECDSA signature.");
+                throw new System.Security.Cryptography.CryptographicException("Invalid ECDSA signature.");
 
             ReadOnlySpan<byte> value = Data.Slice(Offset, length);
             Offset += length;
@@ -658,7 +658,7 @@ namespace CustomBuildTool
             }
 
             if (Source.Length > Destination.Length)
-                throw new CryptographicException("Invalid ECDSA signature.");
+                throw new System.Security.Cryptography.CryptographicException("Invalid ECDSA signature.");
 
             Source.CopyTo(Destination.Slice(Destination.Length - Source.Length));
         }

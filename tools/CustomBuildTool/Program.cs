@@ -450,7 +450,7 @@ namespace CustomBuildTool
                 string c = parseResult.GetValue(arg);
                 BuildToolsId.CheckForOutOfDateTools();
                 Build.SetupBuildEnvironment(true);
-                Utils.ExecuteDevEnvCommand(c);
+                Utils.ExecuteDevEnvCommand([c]);
                 Build.ShowBuildStats();
             });
             return cmd;
