@@ -9,8 +9,6 @@
  *
  */
 
-using CryptographicException = System.Security.Cryptography.CryptographicException;
-
 namespace CustomBuildTool
 {
     /// <summary>
