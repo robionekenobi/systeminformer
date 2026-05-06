@@ -178,12 +178,37 @@ namespace CustomBuildTool
                 value.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
                 )
             {
-                string hex = value[2..].ToUpperInvariant();
-                var parts = hex.Split('C');
-                if (parts.Length == 3 &&
-                    uint.TryParse(parts[0], NumberStyles.HexNumber, null, out uint major) &&
-                    uint.TryParse(parts[1], NumberStyles.HexNumber, null, out uint minor) &&
-                    uint.TryParse(parts[2], NumberStyles.HexNumber, null, out uint patch))
+                ReadOnlySpan<char> hex = value.AsSpan(2);
+                int major = -1, minor = -1, patch = -1;
+                int partIndex = 0;
+
+                while (!hex.IsEmpty)
+                {
+                    int nextC = hex.IndexOf('C');
+                    ReadOnlySpan<char> part = nextC >= 0 ? hex[..nextC] : hex;
+
+                    if (partIndex == 0)
+                    {
+                        if (!uint.TryParse(part, NumberStyles.HexNumber, null, out uint val)) break;
+                        major = (int)val;
+                    }
+                    else if (partIndex == 1)
+                    {
+                        if (!uint.TryParse(part, NumberStyles.HexNumber, null, out uint val)) break;
+                        minor = (int)val;
+                    }
+                    else if (partIndex == 2)
+                    {
+                        if (!uint.TryParse(part, NumberStyles.HexNumber, null, out uint val)) break;
+                        patch = (int)val;
+                    }
+
+                    if (nextC < 0) break;
+                    hex = hex[(nextC + 1)..];
+                    partIndex++;
+                }
+
+                if (major != -1 && minor != -1 && patch != -1)
                 {
                     return $"{major}.{minor}.{patch}";
                 }
@@ -192,7 +217,7 @@ namespace CustomBuildTool
             if (
                 lib.Name.Equals("zydis", StringComparison.OrdinalIgnoreCase) &&
                 value.StartsWith("0x", StringComparison.OrdinalIgnoreCase) &&
-                ulong.TryParse(value[2..], NumberStyles.HexNumber, null, out ulong zydisVersion)
+                ulong.TryParse(value.AsSpan(2), NumberStyles.HexNumber, null, out ulong zydisVersion)
                 )
             {
                 var major = (zydisVersion & 0xFFFF000000000000) >> 48;

@@ -55,7 +55,7 @@ namespace CustomBuildTool
         /// <summary>
         /// Sends an HTTP request and returns the response. Caller is responsible for disposing the response.
         /// </summary>
-        public static async Task<HttpResponseMessage> SendMessageResponse(HttpClient HttpClient, HttpRequestMessage HttpMessage, CancellationToken CancellationToken = default)
+        public static async ValueTask<HttpResponseMessage> SendMessageResponse(HttpClient HttpClient, HttpRequestMessage HttpMessage, CancellationToken CancellationToken = default)
         {
             HttpResponseMessage response;
 
@@ -63,9 +63,9 @@ namespace CustomBuildTool
             {
                 response = await HttpClient.SendAsync(HttpMessage, CancellationToken);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                Program.PrintColorMessage($"[Exception] SendMessageResponse", ConsoleColor.Red);
+                Program.PrintColorMessage($"[Exception] SendMessageResponse: {ex.GetType().Name}: {ex.Message}", ConsoleColor.Red);
                 return null;
             }
 
@@ -85,7 +85,7 @@ namespace CustomBuildTool
         /// <param name="CancellationToken">A cancellation token that can be used to cancel the operation. Optional.</param>
         /// <returns>A task representing the asynchronous operation. The task result contains the deserialized value of type
         /// TValue, or the default value if deserialization fails.</returns>
-        public static async Task<TValue> SendMessage<TValue>(HttpClient HttpClient, HttpRequestMessage HttpMessage, JsonTypeInfo<TValue> jsonTypeInfo, CancellationToken CancellationToken = default)
+        public static async ValueTask<TValue> SendMessage<TValue>(HttpClient HttpClient, HttpRequestMessage HttpMessage, JsonTypeInfo<TValue> jsonTypeInfo, CancellationToken CancellationToken = default)
         {
             try
             {
@@ -106,9 +106,9 @@ namespace CustomBuildTool
 
                 return result;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                Program.PrintColorMessage($"[Exception] SendMessage", ConsoleColor.Red);
+                Program.PrintColorMessage($"[Exception] SendMessage: {ex.GetType().Name}: {ex.Message}", ConsoleColor.Red);
                 return default;
             }
         }

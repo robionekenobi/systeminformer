@@ -14,8 +14,11 @@ namespace CustomBuildTool
     /// <summary>
     /// Provides methods for interacting with Azure DevOps build information using environment variables and HTTP requests.
     /// </summary>
-    public static class BuildDevOps
+    public static partial class BuildDevOps
     {
+        [GeneratedRegex(@"https://download\.microsoft\.com/download/[^\']+\.json", RegexOptions.IgnoreCase)]
+        private static partial Regex AzureServiceTagsRegex();
+
         /// <summary>
         /// Provides a shared HTTP client instance for communicating with DevOps services.
         /// </summary>
@@ -113,69 +116,59 @@ namespace CustomBuildTool
         /// Downloads the Azure service tags JSON and returns all address prefixes.
         /// </summary>
         /// <returns>A list of address prefixes from the weekly service tags JSON file, or <c>null</c> on error.</returns>
-        public static async Task<List<string>> DownloadAzureServiceTags()
+        public static async IAsyncEnumerable<string> DownloadAzureServiceTags([EnumeratorCancellation] CancellationToken CancellationToken = default)
         {
-            try
+            const string downloadPageUrl = "https://www.microsoft.com/download/details.aspx?id=56519";
+
+            using var requestMessage = new HttpRequestMessage(HttpMethod.Get, downloadPageUrl);
+            requestMessage.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/html"));
+
+            using var response = await BuildHttpClient.SendMessageResponse(DevOpsHttpClient, requestMessage);
+            if (response == null || !response.IsSuccessStatusCode)
             {
-                const string downloadPageUrl = "https://www.microsoft.com/download/details.aspx?id=56519";
+                Program.PrintColorMessage("[DownloadAzureServiceTags] download page failed", ConsoleColor.Red);
+                yield break;
+            }
 
-                using var requestMessage = new HttpRequestMessage(HttpMethod.Get, downloadPageUrl);
-                requestMessage.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/html"));
+            var pageContent = await response.Content.ReadAsStringAsync(CancellationToken);
+            var match = AzureServiceTagsRegex().Match(pageContent);
+            if (!match.Success)
+            {
+                Program.PrintColorMessage("[DownloadAzureServiceTags] download url not found", ConsoleColor.Red);
+                yield break;
+            }
 
-                using var response = await BuildHttpClient.SendMessageResponse(DevOpsHttpClient, requestMessage);
-                if (response == null || !response.IsSuccessStatusCode)
+            using var jsonRequest = new HttpRequestMessage(HttpMethod.Get, match.Value);
+            jsonRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+            using var jsonResponse = await BuildHttpClient.SendMessageResponse(DevOpsHttpClient, jsonRequest);
+            if (jsonResponse == null || !jsonResponse.IsSuccessStatusCode)
+            {
+                Program.PrintColorMessage("[DownloadAzureServiceTags] json download failed", ConsoleColor.Red);
+                yield break;
+            }
+
+            using var stream = await jsonResponse.Content.ReadAsStreamAsync(CancellationToken);
+            var tags = await JsonSerializer.DeserializeAsync(stream, BuildInfoResponseContext.Default.AzureServiceTagsResponse, CancellationToken);
+            if (tags?.Values == null)
+            {
+                Program.PrintColorMessage("[DownloadAzureServiceTags] invalid json", ConsoleColor.Red);
+                yield break;
+            }
+
+            var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var value in tags.Values)
+            {
+                if (value?.Properties?.AddressPrefixes == null)
+                    continue;
+
+                foreach (var prefix in value.Properties.AddressPrefixes)
                 {
-                    Program.PrintColorMessage("[DownloadAzureServiceTags] download page failed", ConsoleColor.Red);
-                    return null;
-                }
-
-                var pageContent = await response.Content.ReadAsStringAsync();
-                var match = System.Text.RegularExpressions.Regex.Match(pageContent, @"https://download\.microsoft\.com/download/[^\']+\.json", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                if (!match.Success)
-                {
-                    Program.PrintColorMessage("[DownloadAzureServiceTags] download url not found", ConsoleColor.Red);
-                    return null;
-                }
-
-                using var jsonRequest = new HttpRequestMessage(HttpMethod.Get, match.Value);
-                jsonRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-                using var jsonResponse = await BuildHttpClient.SendMessageResponse(DevOpsHttpClient, jsonRequest);
-                if (jsonResponse == null || !jsonResponse.IsSuccessStatusCode)
-                {
-                    Program.PrintColorMessage("[DownloadAzureServiceTags] json download failed", ConsoleColor.Red);
-                    return null;
-                }
-
-                using var stream = await jsonResponse.Content.ReadAsStreamAsync();
-                var tags = await JsonSerializer.DeserializeAsync(stream, BuildInfoResponseContext.Default.AzureServiceTagsResponse);
-                if (tags?.Values == null)
-                {
-                    Program.PrintColorMessage("[DownloadAzureServiceTags] invalid json", ConsoleColor.Red);
-                    return null;
-                }
-
-                var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var value in tags.Values)
-                {
-                    if (value?.Properties?.AddressPrefixes == null)
-                        continue;
-
-                    foreach (var prefix in value.Properties.AddressPrefixes)
+                    if (!string.IsNullOrWhiteSpace(prefix) && results.Add(prefix))
                     {
-                        if (!string.IsNullOrWhiteSpace(prefix))
-                        {
-                            results.Add(prefix);
-                        }
+                        yield return prefix;
                     }
                 }
-
-                return results.ToList();
-            }
-            catch (Exception ex)
-            {
-                Program.PrintColorMessage("[DownloadAzureServiceTags] " + ex, ConsoleColor.Red);
-                return null;
             }
         }
     }

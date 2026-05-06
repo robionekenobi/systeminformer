@@ -71,7 +71,7 @@ typedef struct _PH_SETUP_CONTEXT
         ULONG Flags;
         struct
         {
-            ULONG SetupRemoveAppData: 1;
+            ULONG SetupRemoveAppData : 1;
             ULONG SetupIsLegacyUpdate : 1;
             ULONG Silent : 1;
             ULONG NoStart : 1;
@@ -92,6 +92,8 @@ typedef struct _PH_SETUP_CONTEXT
     ULONG CurrentRevisionVersion;
 
     HANDLE SubProcessHandle;
+
+    PPH_STRING SessionId;
 } PH_SETUP_CONTEXT, *PPH_SETUP_CONTEXT;
 
 VOID SetupParseCommandLine(
@@ -278,6 +280,28 @@ NTSTATUS SetupOverwriteFile(
     _In_ PPH_STRING FileName,
     _In_ PVOID Buffer,
     _In_ ULONG BufferLength
+    );
+
+NTSTATUS SetupWriteFileAtomic(
+    _In_ PPH_SETUP_CONTEXT Context,
+    _In_ PPH_STRING FinalName,
+    _In_ PVOID Buffer,
+    _In_ ULONG BufferLength
+    );
+
+NTSTATUS SetupCommitFile(
+    _In_ PPH_SETUP_CONTEXT Context,
+    _In_ PPH_STRING FinalName
+    );
+
+NTSTATUS SetupRollbackFile(
+    _In_ PPH_SETUP_CONTEXT Context,
+    _In_ PPH_STRING FinalName
+    );
+
+NTSTATUS SetupFinalizeFile(
+    _In_ PPH_SETUP_CONTEXT Context,
+    _In_ PPH_STRING FinalName
     );
 
 NTSTATUS SetupHashFile(

@@ -1874,6 +1874,80 @@ NTSTATUS SetupOverwriteFile(
         );
 
     if (!NT_SUCCESS(status))
+        return status;
+
+    status = NtWriteFile(
+        fileHandle,
+        NULL,
+        NULL,
+        NULL,
+        &isb,
+        Buffer,
+        BufferLength,
+        NULL,
+        NULL
+        );
+
+    NtClose(fileHandle);
+
+    if (isb.Information != BufferLength)
+    {
+        status = STATUS_UNSUCCESSFUL;
+    }
+
+     return status;
+ }
+ 
+PPH_STRING SetupGetSessionId(
+    _In_ PPH_SETUP_CONTEXT Context
+    )
+{
+    if (!Context->SessionId)
+    {
+        LARGE_INTEGER time;
+        ULONG seed;
+
+        NtQuerySystemTime(&time);
+        seed = time.LowPart;
+        Context->SessionId = PhFormatString(L"%08x", RtlRandomEx(&seed));
+    }
+
+    return Context->SessionId;
+}
+
+NTSTATUS SetupWriteFileAtomic(
+    _In_ PPH_SETUP_CONTEXT Context,
+    _In_ PPH_STRING FinalName,
+    _In_ PVOID Buffer,
+    _In_ ULONG BufferLength
+    )
+{
+    NTSTATUS status;
+    PPH_STRING sessionId;
+    PPH_STRING stagingName;
+    HANDLE fileHandle = NULL;
+    LARGE_INTEGER allocationSize;
+    IO_STATUS_BLOCK isb;
+
+    if (!(sessionId = SetupGetSessionId(Context)))
+        return STATUS_NO_MEMORY;
+
+    stagingName = PhaFormatString(L"%s.%s.new", PhGetString(FinalName), PhGetString(sessionId));
+    allocationSize.QuadPart = BufferLength;
+
+    status = PhCreateFileWin32Ex(
+        &fileHandle,
+        PhGetString(stagingName),
+        FILE_GENERIC_WRITE | DELETE,
+        &allocationSize,
+        FILE_ATTRIBUTE_NORMAL,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        FILE_OVERWRITE_IF,
+        FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT,
+        NULL
+        );
+
+    if (!NT_SUCCESS(status))
         goto CleanupExit;
 
     status = NtWriteFile(
@@ -1888,13 +1962,12 @@ NTSTATUS SetupOverwriteFile(
         NULL
         );
 
-    if (!NT_SUCCESS(status))
-        goto CleanupExit;
-
-    if (isb.Information != BufferLength)
+    if (NT_SUCCESS(status))
     {
-        status = STATUS_UNSUCCESSFUL;
-        goto CleanupExit;
+        if (isb.Information != BufferLength)
+            status = STATUS_UNSUCCESSFUL;
+        else
+            PhFlushBuffersFile(fileHandle);
     }
 
 CleanupExit:
@@ -1905,13 +1978,137 @@ CleanupExit:
     return status;
 }
 
-/**
- * Computes the SHA256 hash of a file.
- *
- * \param FileName The name of the file to hash.
- * \param Buffer A buffer to receive the hash.
- * \return Successful or errant status.
- */
+NTSTATUS SetupCommitFile(
+    _In_ PPH_SETUP_CONTEXT Context,
+    _In_ PPH_STRING FinalName
+    )
+{
+    NTSTATUS status;
+    PPH_STRING sessionId;
+    PPH_STRING stagingName;
+    PPH_STRING backupName;
+    HANDLE fileHandle = NULL;
+
+    if (!(sessionId = SetupGetSessionId(Context)))
+        return STATUS_NO_MEMORY;
+
+    stagingName = PhaFormatString(L"%s.%s.new", PhGetString(FinalName), PhGetString(sessionId));
+    backupName = PhaFormatString(L"%s.%s.bak", PhGetString(FinalName), PhGetString(sessionId));
+
+    // If target exists, rename it to .bak
+    if (PhDoesFileExistWin32(PhGetString(FinalName)))
+    {
+        HANDLE targetHandle;
+
+        status = PhCreateFileWin32Ex(
+            &targetHandle,
+            PhGetString(FinalName),
+            DELETE,
+            NULL,
+            FILE_ATTRIBUTE_NORMAL,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            FILE_OPEN,
+            FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT,
+            NULL
+            );
+
+        if (NT_SUCCESS(status))
+        {
+            status = PhSetFileRename(fileHandle, NULL, TRUE, &FinalName->sr);
+            NtClose(targetHandle);
+        }
+
+        if (!NT_SUCCESS(status))
+            return status;
+    }
+
+    // Rename .new to FinalName
+    status = PhCreateFileWin32Ex(
+        &fileHandle,
+        PhGetString(stagingName),
+        DELETE,
+        NULL,
+        FILE_ATTRIBUTE_NORMAL,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        FILE_OPEN,
+        FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT,
+        NULL
+        );
+
+    if (NT_SUCCESS(status))
+    {
+        status = PhSetFileRename(fileHandle, NULL, TRUE, &stagingName->sr);
+        NtClose(fileHandle);
+    }
+
+    return status;
+}
+
+NTSTATUS SetupRollbackFile(
+    _In_ PPH_SETUP_CONTEXT Context,
+    _In_ PPH_STRING FinalName
+    )
+{
+    PPH_STRING sessionId;
+    PPH_STRING stagingName;
+    PPH_STRING backupName;
+
+    if (!(sessionId = SetupGetSessionId(Context)))
+        return STATUS_NO_MEMORY;
+
+    stagingName = PhaFormatString(L"%s.%s.new", PhGetString(FinalName), PhGetString(sessionId));
+    backupName = PhaFormatString(L"%s.%s.bak", PhGetString(FinalName), PhGetString(sessionId));
+
+    // Delete .new
+    PhDeleteFileWin32(PhGetString(stagingName));
+
+    // If .bak exists, rename it back to FinalName
+    if (PhDoesFileExistWin32(PhGetString(backupName)))
+    {
+        HANDLE backupHandle;
+
+        if (NT_SUCCESS(PhCreateFileWin32Ex(
+            &backupHandle,
+            PhGetString(backupName),
+            DELETE,
+            NULL,
+            FILE_ATTRIBUTE_NORMAL,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            FILE_OPEN,
+            FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT,
+            NULL
+            )))
+        {
+            PhSetFileRename(backupHandle, NULL, TRUE, &FinalName->sr);
+            NtClose(backupHandle);
+        }
+    }
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS SetupFinalizeFile(
+    _In_ PPH_SETUP_CONTEXT Context,
+    _In_ PPH_STRING FinalName
+    )
+{
+    PPH_STRING sessionId;
+    PPH_STRING backupName;
+
+    if (!(sessionId = SetupGetSessionId(Context)))
+        return STATUS_NO_MEMORY;
+
+    backupName = PhaFormatString(L"%s.%s.bak", PhGetString(FinalName), PhGetString(sessionId));
+
+    // Delete .bak (best effort)
+    if (!PhDeleteFileWin32(PhGetString(backupName)))
+    {
+        MoveFileEx(PhGetString(backupName), NULL, MOVEFILE_DELAY_UNTIL_REBOOT);
+    }
+
+    return STATUS_SUCCESS;
+}
+
 NTSTATUS SetupHashFile(
     _In_ PPH_STRING FileName,
     _Out_writes_all_(256 / 8) PBYTE Buffer

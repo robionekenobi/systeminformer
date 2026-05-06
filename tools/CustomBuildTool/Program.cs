@@ -40,49 +40,58 @@ namespace CustomBuildTool
             var rootCommand = new RootCommand("CustomBuildTool for System Informer.");
 
             // Global Options
-            var verboseOption = new Option<bool>(["-verbose", "--verbose"], "Enables verbose output.");
-            rootCommand.AddGlobalOption(verboseOption);
+            var verboseOption = new Option<bool>("-verbose", ["--verbose"])
+            {
+                Description = "Enables verbose output.",
+                Recursive = true
+            };
+            rootCommand.Add(verboseOption);
 
-            var argsFileOption = new Option<string>(["-argsfile"], "Read arguments from a file instead of the command line.");
-            rootCommand.AddGlobalOption(argsFileOption);
+            var argsFileOption = new Option<string>("-argsfile")
+            {
+                Description = "Read arguments from a file instead of the command line.",
+                Recursive = true
+            };
+            rootCommand.Add(argsFileOption);
 
             // Subcommands
-            rootCommand.AddCommand(CreateWriteToolsIdCommand());
-            rootCommand.AddCommand(CreateCleanupCommand());
-            rootCommand.AddCommand(CreateAzSignCommand());
-            rootCommand.AddCommand(CreateCleanSdkCommand());
-            rootCommand.AddCommand(CreateCheckMsvcCommand());
-            rootCommand.AddCommand(CreateInstallMsvcCommand());
-            rootCommand.AddCommand(CreateDynDataCommand());
-            rootCommand.AddCommand(CreatePhAppPubGenCommand());
-            rootCommand.AddCommand(CreatePhntHeadersGenCommand());
-            rootCommand.AddCommand(CreateKphSignCommand());
-            rootCommand.AddCommand(CreateDecryptCommand());
-            rootCommand.AddCommand(CreateEncryptCommand());
-            rootCommand.AddCommand(CreateReflowCommand());
-            rootCommand.AddCommand(CreateReflowValidCommand(verboseOption));
-            rootCommand.AddCommand(CreateReflowRevertCommand());
-            rootCommand.AddCommand(CreateVtScanCommand());
-            rootCommand.AddCommand(CreateDevEnvBuildCommand());
-            rootCommand.AddCommand(CreateBinCommand(verboseOption));
-            rootCommand.AddCommand(CreatePipelineBuildCommand(verboseOption));
-            rootCommand.AddCommand(CreatePipelinePackageCommand(verboseOption));
-            rootCommand.AddCommand(CreatePipelineDeployCommand(verboseOption));
-            rootCommand.AddCommand(CreateMsixBuildCommand(verboseOption));
-            rootCommand.AddCommand(CreateSdkCommand(verboseOption));
-            rootCommand.AddCommand(CreateDebugCommand(verboseOption));
-            rootCommand.AddCommand(CreateReleaseCommand(verboseOption));
-            rootCommand.AddCommand(CreateCMakeBuildCommand(verboseOption));
-            rootCommand.AddCommand(CreateCMakeBinCommand(verboseOption));
-            rootCommand.AddCommand(CreateCMakeReleaseCommand(verboseOption));
-            rootCommand.AddCommand(CreateCMakePipelineBuildCommand(verboseOption));
-            rootCommand.AddCommand(CreateCMakePipelinePackageCommand(verboseOption));
-            rootCommand.AddCommand(CreateCMakePipelineDeployCommand(verboseOption));
-            rootCommand.AddCommand(CreateCheckThirdPartyCommand());
+            rootCommand.Add(CreateWriteToolsIdCommand());
+            rootCommand.Add(CreateCleanupCommand());
+            rootCommand.Add(CreateAzSignCommand());
+            rootCommand.Add(CreateCleanSdkCommand());
+            rootCommand.Add(CreateCheckMsvcCommand());
+            rootCommand.Add(CreateInstallMsvcCommand());
+            rootCommand.Add(CreateDynDataCommand());
+            rootCommand.Add(CreatePhAppPubGenCommand());
+            rootCommand.Add(CreatePhntHeadersGenCommand());
+            rootCommand.Add(CreateKphSignCommand());
+            rootCommand.Add(CreateDecryptCommand());
+            rootCommand.Add(CreateEncryptCommand());
+            rootCommand.Add(CreateReflowCommand());
+            rootCommand.Add(CreateReflowValidCommand(verboseOption));
+            rootCommand.Add(CreateReflowRevertCommand());
+            rootCommand.Add(CreateVtScanCommand());
+            rootCommand.Add(CreateDevEnvBuildCommand());
+            rootCommand.Add(CreateBinCommand(verboseOption));
+            rootCommand.Add(CreatePipelineBuildCommand(verboseOption));
+            rootCommand.Add(CreatePipelinePackageCommand(verboseOption));
+            rootCommand.Add(CreatePipelineDeployCommand(verboseOption));
+            rootCommand.Add(CreateMsixBuildCommand(verboseOption));
+            rootCommand.Add(CreateSdkCommand(verboseOption));
+            rootCommand.Add(CreateDebugCommand(verboseOption));
+            rootCommand.Add(CreateReleaseCommand(verboseOption));
+            rootCommand.Add(CreateCMakeBuildCommand(verboseOption));
+            rootCommand.Add(CreateCMakeBinCommand(verboseOption));
+            rootCommand.Add(CreateCMakeReleaseCommand(verboseOption));
+            rootCommand.Add(CreateCMakePipelineBuildCommand(verboseOption));
+            rootCommand.Add(CreateCMakePipelinePackageCommand(verboseOption));
+            rootCommand.Add(CreateCMakePipelineDeployCommand(verboseOption));
+            rootCommand.Add(CreateCheckThirdPartyCommand());
 
             // Default handler when no command is provided
-            rootCommand.SetHandler((bool verbose) =>
+            rootCommand.SetAction(parseResult =>
             {
+                bool verbose = parseResult.GetValue(verboseOption);
                 Dictionary<string, string> ProgramArgsHelp = new(StringComparer.OrdinalIgnoreCase)
                 {
                     { "-argsfile", "Read arguments from a file instead of the command line." },
@@ -122,22 +131,17 @@ namespace CustomBuildTool
 
                 PrintColorMessage("Error: Missing required arguments. Use -h or --help for valid commands.\r\n", ConsoleColor.Red, true);
 
-            }, verboseOption);
+            });
 
-            var parser = new CommandLineBuilder(rootCommand)
-                .UseVersionOption()
-                .UseHelp()
-                //.UseEnvironmentVariableDirective()
-                .UseParseDirective()
-                .UseSuggestDirective()
-                .RegisterWithDotnetSuggest()
-                .UseTypoCorrections()
-                .UseParseErrorReporting()
-                .UseExceptionHandler()
-                .CancelOnProcessTermination()
-                .Build();
+            rootCommand.Add(new VersionOption());
+            rootCommand.Add(new DiagramDirective());
+            rootCommand.Add(new System.CommandLine.Completions.SuggestDirective());
 
-            return parser.InvokeAsync(args);
+            return rootCommand.Parse(args).InvokeAsync(new InvocationConfiguration
+            {
+                EnableDefaultExceptionHandler = true,
+                ProcessTerminationTimeout = TimeSpan.FromSeconds(2)
+            });
         }
 
         /// <summary>
@@ -147,7 +151,7 @@ namespace CustomBuildTool
         private static Command CreateWriteToolsIdCommand()
         {
             var cmd = new Command("-write-tools-id", "Writes the tools id file (internal).");
-            cmd.SetHandler(() => BuildToolsId.WriteToolsId());
+            cmd.SetAction(_ => BuildToolsId.WriteToolsId());
             return cmd;
         }
 
@@ -158,7 +162,7 @@ namespace CustomBuildTool
         private static Command CreateCleanupCommand()
         {
             var cmd = new Command("-cleanup", "Cleans up the build environment.");
-            cmd.SetHandler(() =>
+            cmd.SetAction(_ =>
             {
                 BuildToolsId.CheckForOutOfDateTools();
                 Build.CleanupBuildEnvironment();
@@ -174,13 +178,17 @@ namespace CustomBuildTool
         private static Command CreateAzSignCommand()
         {
             var cmd = new Command("-azsign", "Creates signature files for build.");
-            var pathArg = new Argument<string>("path", "Path to sign");
-            cmd.AddArgument(pathArg);
-            cmd.SetHandler(async (string path) =>
+            var pathArg = new Argument<string>("path")
             {
+                Description = "Path to sign"
+            };
+            cmd.Add(pathArg);
+            cmd.SetAction(async parseResult =>
+            {
+                string path = parseResult.GetValue(pathArg);
                 BuildToolsId.CheckForOutOfDateTools();
                 if (!await BuildAzure.SignFiles(path)) Environment.Exit(1);
-            }, pathArg);
+            });
             return cmd;
         }
 
@@ -191,7 +199,7 @@ namespace CustomBuildTool
         private static Command CreateCleanSdkCommand()
         {
             var cmd = new Command("-cleansdk", "Cleans SDK build artifacts (internal).");
-            cmd.SetHandler(() =>
+            cmd.SetAction(_ =>
             {
                 BuildToolsId.CheckForOutOfDateTools();
                 BuildFlags flags = BuildFlags.Build32bit | BuildFlags.Build64bit | BuildFlags.BuildArm64bit | BuildFlags.BuildVerbose | BuildFlags.BuildApi;
@@ -208,7 +216,7 @@ namespace CustomBuildTool
         private static Command CreateCheckMsvcCommand()
         {
             var cmd = new Command("-check_msvc", "Check required build dependencies are installed.");
-            cmd.SetHandler(() =>
+            cmd.SetAction(_ =>
             {
                 BuildToolsId.CheckForOutOfDateTools();
                 if (!BuildVisualStudio.CheckBuildDependencies()) Environment.Exit(1);
@@ -224,7 +232,7 @@ namespace CustomBuildTool
         private static Command CreateInstallMsvcCommand()
         {
             var cmd = new Command("-install_msvc", "Installs any missing build dependencies.");
-            cmd.SetHandler(async () =>
+            cmd.SetAction(async _ =>
             {
                 BuildToolsId.CheckForOutOfDateTools();
                 if (!await BuildVisualStudio.InstallBuildDependencies()) Environment.Exit(1);
@@ -240,15 +248,20 @@ namespace CustomBuildTool
         private static Command CreateDynDataCommand()
         {
             var cmd = new Command("-dyndata", "Builds dynamic data.");
-            var arg = new Argument<string>("arg", () => string.Empty, "Dynamic data argument (optional)");
-            cmd.AddArgument(arg);
-            cmd.SetHandler((string a) =>
+            var arg = new Argument<string>("arg")
             {
+                Description = "Dynamic data argument (optional)",
+                DefaultValueFactory = _ => string.Empty
+            };
+            cmd.Add(arg);
+            cmd.SetAction(parseResult =>
+            {
+                string a = parseResult.GetValue(arg);
                 BuildToolsId.CheckForOutOfDateTools();
 
                 if (!Build.BuildDynamicData(a))
                     Environment.Exit(1);
-            }, arg);
+            });
             return cmd;
         }
 
@@ -259,7 +272,7 @@ namespace CustomBuildTool
         private static Command CreatePhAppPubGenCommand()
         {
             var cmd = new Command("-phapppub_gen", "Generates public header files.");
-            cmd.SetHandler(() =>
+            cmd.SetAction(_ =>
             {
                 BuildToolsId.CheckForOutOfDateTools();
                 if (!Build.BuildPublicHeaderFiles()) Environment.Exit(1);
@@ -275,7 +288,7 @@ namespace CustomBuildTool
         private static Command CreatePhntHeadersGenCommand()
         {
             var cmd = new Command("-phnt_headers_gen", "Builds single native header.");
-            cmd.SetHandler(() =>
+            cmd.SetAction(_ =>
             {
                 BuildToolsId.CheckForOutOfDateTools();
                 if (!Build.BuildSingleNativeHeader()) Environment.Exit(1);
@@ -291,13 +304,17 @@ namespace CustomBuildTool
         private static Command CreateKphSignCommand()
         {
             var cmd = new Command("-kphsign", "Creates signature files for build.");
-            var arg = new Argument<string>("keyName", "Key name");
-            cmd.AddArgument(arg);
-            cmd.SetHandler((string k) =>
+            var arg = new Argument<string>("keyName")
             {
+                Description = "Key name"
+            };
+            cmd.Add(arg);
+            cmd.SetAction(parseResult =>
+            {
+                string k = parseResult.GetValue(arg);
                 BuildToolsId.CheckForOutOfDateTools();
                 if (!BuildVerify.CreateSigFile("kph", k, Build.BuildCanary)) Environment.Exit(1);
-            }, arg);
+            });
             return cmd;
         }
 
@@ -308,15 +325,19 @@ namespace CustomBuildTool
         private static Command CreateDecryptCommand()
         {
             var cmd = new Command("-decrypt", "Decrypts a file.");
-            var configOpt = new Option<string>("-config", "Config file");
-            cmd.AddOption(configOpt);
-            cmd.SetHandler((string config) =>
+            var configOpt = new Option<string>("-config")
             {
+                Description = "Config file"
+            };
+            cmd.Add(configOpt);
+            cmd.SetAction(parseResult =>
+            {
+                string config = parseResult.GetValue(configOpt);
                 BuildToolsId.CheckForOutOfDateTools();
                 var vargs = Utils.ParseArgumentsFromFile(config);
                 if (!BuildVerify.DecryptFile(vargs["-input"], vargs["-output"], vargs["-secret"], vargs["-salt"], vargs["-Iterations"]))
                     Environment.Exit(1);
-            }, configOpt);
+            });
             return cmd;
         }
 
@@ -327,15 +348,19 @@ namespace CustomBuildTool
         private static Command CreateEncryptCommand()
         {
             var cmd = new Command("-encrypt", "Encrypts a file.");
-            var configOpt = new Option<string>("-config", "Config file");
-            cmd.AddOption(configOpt);
-            cmd.SetHandler((string config) =>
+            var configOpt = new Option<string>("-config")
             {
+                Description = "Config file"
+            };
+            cmd.Add(configOpt);
+            cmd.SetAction(parseResult =>
+            {
+                string config = parseResult.GetValue(configOpt);
                 BuildToolsId.CheckForOutOfDateTools();
                 var vargs = Utils.ParseArgumentsFromFile(config);
                 if (!BuildVerify.EncryptFile(vargs["-input"], vargs["-output"], vargs["-secret"], vargs["-salt"], vargs["-Iterations"]))
                     Environment.Exit(1);
-            }, configOpt);
+            });
             return cmd;
         }
 
@@ -346,7 +371,7 @@ namespace CustomBuildTool
         private static Command CreateReflowCommand()
         {
             var cmd = new Command("-reflow", "Exports the current export definitions.");
-            cmd.SetHandler(() =>
+            cmd.SetAction(_ =>
             {
                 BuildToolsId.CheckForOutOfDateTools();
                 Build.ExportDefinitions(true);
@@ -362,12 +387,13 @@ namespace CustomBuildTool
         private static Command CreateReflowValidCommand(Option<bool> verboseOption)
         {
             var cmd = new Command("-reflowvalid", "Validates the current export definitions.");
-            cmd.SetHandler((bool verbose) =>
+            cmd.SetAction(parseResult =>
             {
+                bool verbose = parseResult.GetValue(verboseOption);
                 BuildToolsId.CheckForOutOfDateTools();
                 BuildFlags flags = BuildFlags.Release | (verbose ? BuildFlags.BuildVerbose : BuildFlags.None);
                 if (!Build.BuildValidateExportDefinitions(flags)) Environment.Exit(1);
-            }, verboseOption);
+            });
             return cmd;
         }
 
@@ -378,7 +404,7 @@ namespace CustomBuildTool
         private static Command CreateReflowRevertCommand()
         {
             var cmd = new Command("-reflowrevert", "Revert export definitions to previous state.");
-            cmd.SetHandler(() =>
+            cmd.SetAction(_ =>
             {
                 BuildToolsId.CheckForOutOfDateTools();
                 Build.ExportDefinitionsRevert();
@@ -393,13 +419,17 @@ namespace CustomBuildTool
         private static Command CreateVtScanCommand()
         {
             var cmd = new Command("-vtscan", "Uploads a file to VirusTotal for scanning.");
-            var fileOpt = new Option<string>("-file", "File to scan");
-            cmd.AddOption(fileOpt);
-            cmd.SetHandler(async (string file) =>
+            var fileOpt = new Option<string>("-file")
             {
+                Description = "File to scan"
+            };
+            cmd.Add(fileOpt);
+            cmd.SetAction(async parseResult =>
+            {
+                string file = parseResult.GetValue(fileOpt);
                 BuildToolsId.CheckForOutOfDateTools();
                 await BuildVirusTotal.UploadScanFile(file);
-            }, fileOpt);
+            });
             return cmd;
         }
 
@@ -409,16 +439,20 @@ namespace CustomBuildTool
         /// <returns>A Command object configured to run the DevEnv build process.</returns>
         private static Command CreateDevEnvBuildCommand()
         {
-            var arg = new Argument<string>("command", "DevEnv command");
-            var cmd = new Command("-devenv-build", "Runs devenv build.");
-            cmd.AddArgument(arg);
-            cmd.SetHandler((string c) =>
+            var arg = new Argument<string>("command")
             {
+                Description = "DevEnv command"
+            };
+            var cmd = new Command("-devenv-build", "Runs devenv build.");
+            cmd.Add(arg);
+            cmd.SetAction(parseResult =>
+            {
+                string c = parseResult.GetValue(arg);
                 BuildToolsId.CheckForOutOfDateTools();
                 Build.SetupBuildEnvironment(true);
-                Utils.ExecuteDevEnvCommand(c);
+                Utils.ExecuteDevEnvCommand([c]);
                 Build.ShowBuildStats();
-            }, arg);
+            });
             return cmd;
         }
 
@@ -430,8 +464,9 @@ namespace CustomBuildTool
         private static Command CreateBinCommand(Option<bool> verboseOption)
         {
             var cmd = new Command("-bin", "Builds the binary package.");
-            cmd.SetHandler((bool verbose) =>
+            cmd.SetAction(parseResult =>
             {
+                bool verbose = parseResult.GetValue(verboseOption);
                 BuildToolsId.CheckForOutOfDateTools();
                 BuildFlags flags = BuildFlags.Release | (verbose ? BuildFlags.BuildVerbose : BuildFlags.None);
                 Build.SetupBuildEnvironment(true);
@@ -449,7 +484,7 @@ namespace CustomBuildTool
                     Environment.Exit(1);
 
                 Build.ShowBuildStats();
-            }, verboseOption);
+            });
             return cmd;
         }
 
@@ -462,9 +497,11 @@ namespace CustomBuildTool
         private static Command CreatePipelineBuildCommand(Option<bool> verboseOption)
         {
             var cmd = new Command("-pipeline-build", "Performs pipeline build operations.");
-            cmd.SetHandler((bool verbose) =>
+            cmd.SetAction(parseResult =>
             {
+                bool verbose = parseResult.GetValue(verboseOption);
                 BuildToolsId.CheckForOutOfDateTools();
+                Win32.SetLowIntegrityForProcesses();
 
                 BuildFlags flags = BuildFlags.Release | (verbose ? BuildFlags.BuildVerbose : BuildFlags.None);
 
@@ -478,7 +515,7 @@ namespace CustomBuildTool
 
                 Build.CopyWow64Files(flags);
                 Build.ShowBuildStats();
-            }, verboseOption);
+            });
             return cmd;
         }
 
@@ -490,8 +527,9 @@ namespace CustomBuildTool
         private static Command CreatePipelinePackageCommand(Option<bool> verboseOption)
         {
             var cmd = new Command("-pipeline-package", "Packages pipeline artifacts.");
-            cmd.SetHandler((bool verbose) =>
+            cmd.SetAction(parseResult =>
             {
+                bool verbose = parseResult.GetValue(verboseOption);
                 BuildFlags flags = BuildFlags.Release | (verbose ? BuildFlags.BuildVerbose : BuildFlags.None);
 
                 BuildToolsId.CheckForOutOfDateTools();
@@ -511,7 +549,7 @@ namespace CustomBuildTool
                     Environment.Exit(1);
 
                 Build.ShowBuildStats();
-            }, verboseOption);
+            });
             return cmd;
         }
 
@@ -523,8 +561,9 @@ namespace CustomBuildTool
         private static Command CreatePipelineDeployCommand(Option<bool> verboseOption)
         {
             var cmd = new Command("-pipeline-deploy", "Deploys pipeline artifacts.");
-            cmd.SetHandler(async (bool verbose) =>
+            cmd.SetAction(async parseResult =>
             {
+                bool verbose = parseResult.GetValue(verboseOption);
                 BuildToolsId.CheckForOutOfDateTools();
                 BuildFlags flags = BuildFlags.Release | (verbose ? BuildFlags.BuildVerbose : BuildFlags.None);
                 Build.SetupBuildEnvironment(true);
@@ -532,7 +571,7 @@ namespace CustomBuildTool
                 if (!Build.BuildPdbZip(false, flags)) Environment.Exit(1);
                 if (!await BuildDeploy.BuildUpdateServerConfig()) Environment.Exit(1);
                 Build.ShowBuildStats();
-            }, verboseOption);
+            });
             return cmd;
         }
 
@@ -544,8 +583,9 @@ namespace CustomBuildTool
         private static Command CreateMsixBuildCommand(Option<bool> verboseOption)
         {
             var cmd = new Command("-msix-build", "Builds MSIX store package.");
-            cmd.SetHandler((bool verbose) =>
+            cmd.SetAction(parseResult =>
             {
+                bool verbose = parseResult.GetValue(verboseOption);
                 BuildToolsId.CheckForOutOfDateTools();
                 BuildFlags flags = BuildFlags.Release | BuildFlags.BuildMsix | (verbose ? BuildFlags.BuildVerbose : BuildFlags.None);
                 Build.SetupBuildEnvironment(true);
@@ -560,7 +600,7 @@ namespace CustomBuildTool
                 if (!Build.BuildPdbZip(true, flags)) Environment.Exit(1);
 
                 Build.ShowBuildStats();
-            }, verboseOption);
+            });
             return cmd;
         }
 
@@ -572,25 +612,24 @@ namespace CustomBuildTool
         private static Command CreateSdkCommand(Option<bool> verboseOption)
         {
             var cmd = new Command("-sdk", "Builds the SDK package.");
-            var cmakeOpt = new Option<bool>("-cmake", "Use CMake");
-            var debugOpt = new Option<bool>("-Debug", "Debug build");
-            var releaseOpt = new Option<bool>("-release", "Release build");
-            var win32Opt = new Option<bool>("-Win32", "Win32");
-            var x64Opt = new Option<bool>("-x64", "x64");
-            var arm64Opt = new Option<bool>("-arm64", "arm64");
+            var cmakeOpt = new Option<bool>("-cmake") { Description = "Use CMake" };
+            var debugOpt = new Option<bool>("-Debug", ["-debug"]) { Description = "Debug build" };
+            var releaseOpt = new Option<bool>("-release", ["-Release"]) { Description = "Release build" };
+            var win32Opt = new Option<bool>("-Win32", ["-win32", "-WIN32"]) { Description = "Win32" };
+            var x64Opt = new Option<bool>("-x64", ["-X64"]) { Description = "x64" };
+            var arm64Opt = new Option<bool>("-arm64", ["-Arm64", "-ARM64"]) { Description = "ARM64" };
 
-            debugOpt.AddAlias("-debug");
-            releaseOpt.AddAlias("-Release");
-            win32Opt.AddAlias("-win32");
-            win32Opt.AddAlias("-WIN32");
-            x64Opt.AddAlias("-X64");
-            arm64Opt.AddAlias("-Arm64");
-            arm64Opt.AddAlias("-ARM64");
-
-            cmd.AddOption(cmakeOpt); cmd.AddOption(debugOpt); cmd.AddOption(releaseOpt);
-            cmd.AddOption(win32Opt); cmd.AddOption(x64Opt); cmd.AddOption(arm64Opt);
-            cmd.SetHandler((bool verbose, bool cmake, bool debug, bool release, bool win32, bool x64, bool arm64) =>
+            cmd.Add(cmakeOpt); cmd.Add(debugOpt); cmd.Add(releaseOpt);
+            cmd.Add(win32Opt); cmd.Add(x64Opt); cmd.Add(arm64Opt);
+            cmd.SetAction(parseResult =>
             {
+                bool verbose = parseResult.GetValue(verboseOption);
+                bool cmake = parseResult.GetValue(cmakeOpt);
+                bool debug = parseResult.GetValue(debugOpt);
+                bool release = parseResult.GetValue(releaseOpt);
+                bool win32 = parseResult.GetValue(win32Opt);
+                bool x64 = parseResult.GetValue(x64Opt);
+                bool arm64 = parseResult.GetValue(arm64Opt);
                 BuildToolsId.CheckForOutOfDateTools();
                 BuildFlags flags = BuildFlags.None;
                 Build.SetupBuildEnvironment(false);
@@ -622,7 +661,7 @@ namespace CustomBuildTool
                 if (!Build.CopyWow64Files(flags)) Environment.Exit(1);
 
                 if (verbose) Build.ShowBuildStats();
-            }, verboseOption, cmakeOpt, debugOpt, releaseOpt, win32Opt, x64Opt, arm64Opt);
+            });
             return cmd;
         }
 
@@ -634,8 +673,9 @@ namespace CustomBuildTool
         private static Command CreateDebugCommand(Option<bool> verboseOption)
         {
             var cmd = new Command("-debug", "Builds the debug configuration.");
-            cmd.SetHandler((bool verbose) =>
+            cmd.SetAction(parseResult =>
             {
+                bool verbose = parseResult.GetValue(verboseOption);
                 BuildToolsId.CheckForOutOfDateTools();
                 BuildFlags flags = BuildFlags.Debug | (verbose ? BuildFlags.BuildVerbose : BuildFlags.None);
                 Build.SetupBuildEnvironment(true);
@@ -644,7 +684,7 @@ namespace CustomBuildTool
                 if (!Build.BuildSolution("plugins\\Plugins.sln", flags)) Environment.Exit(1);
 
                 Build.ShowBuildStats();
-            }, verboseOption);
+            });
             return cmd;
         }
 
@@ -656,8 +696,9 @@ namespace CustomBuildTool
         private static Command CreateReleaseCommand(Option<bool> verboseOption)
         {
             var cmd = new Command("-release", "Builds the release configuration.");
-            cmd.SetHandler((bool verbose) =>
+            cmd.SetAction(parseResult =>
             {
+                bool verbose = parseResult.GetValue(verboseOption);
                 BuildToolsId.CheckForOutOfDateTools();
                 BuildFlags flags = BuildFlags.Release | (verbose ? BuildFlags.BuildVerbose : BuildFlags.None);
                 Build.SetupBuildEnvironment(true);
@@ -678,7 +719,7 @@ namespace CustomBuildTool
                 if (!Build.BuildChecksumsFile()) Environment.Exit(1);
 
                 Build.ShowBuildStats();
-            }, verboseOption);
+            });
             return cmd;
         }
 
@@ -690,13 +731,18 @@ namespace CustomBuildTool
         private static Command CreateCMakeBuildCommand(Option<bool> verboseOption)
         {
             var cmd = new Command("-cmake-build", "Builds using CMake.");
-            var genOpt = new Option<string>("-generator", "Generator");
-            var toolOpt = new Option<string>("-toolchain", "Toolchain");
-            var confOpt = new Option<string>("-config", "Config");
-            cmd.AddOption(genOpt); cmd.AddOption(toolOpt); cmd.AddOption(confOpt);
+            var genOpt = new Option<string>("-generator") { Description = "Generator" };
+            var toolOpt = new Option<string>("-toolchain") { Description = "Toolchain" };
+            var confOpt = new Option<string>("-config") { Description = "Config" };
+            cmd.Add(genOpt); cmd.Add(toolOpt); cmd.Add(confOpt);
 
-            cmd.SetHandler((bool verbose, string generatorArg, string toolchainArg, string configArg) =>
+            cmd.SetAction(parseResult =>
             {
+                bool verbose = parseResult.GetValue(verboseOption);
+                string generatorArg = parseResult.GetValue(genOpt);
+                string toolchainArg = parseResult.GetValue(toolOpt);
+                string configArg = parseResult.GetValue(confOpt);
+
                 BuildToolsId.CheckForOutOfDateTools();
                 BuildFlags flags = BuildFlags.Release | (verbose ? BuildFlags.BuildVerbose : BuildFlags.None);
                 Build.SetupBuildEnvironment(true);
@@ -704,11 +750,11 @@ namespace CustomBuildTool
                 var generator = Utils.GetGeneratorFromString(generatorArg);
                 var toolchain = Utils.GetToolchainFromString(toolchainArg);
 
-                if (!Build.BuildSolutionCMake("SystemInformer", generator, toolchain, flags)) Environment.Exit(1);
-                if (!Build.BuildSolutionCMake("Plugins", generator, toolchain, flags)) Environment.Exit(1);
+                if (!Build.BuildSolutionCMake("SystemInformer", generator, toolchain, flags)) 
+                    Environment.Exit(1);
 
                 Build.ShowBuildStats();
-            }, verboseOption, genOpt, toolOpt, confOpt);
+            });
             return cmd;
         }
 
@@ -720,20 +766,20 @@ namespace CustomBuildTool
         private static Command CreateCMakeBinCommand(Option<bool> verboseOption)
         {
             var cmd = new Command("-cmake-bin", "Builds the binary package using CMake (clang).");
-            cmd.SetHandler((bool verbose) =>
+            cmd.SetAction(parseResult =>
             {
+                bool verbose = parseResult.GetValue(verboseOption);
                 BuildToolsId.CheckForOutOfDateTools();
                 BuildFlags flags = BuildFlags.Release | BuildFlags.BuildCMake | (verbose ? BuildFlags.BuildVerbose : BuildFlags.None);
                 Build.SetupBuildEnvironment(true);
 
                 if (!Build.BuildSolutionCMake("SystemInformer", BuildGenerator.Ninja, BuildToolchain.ClangMsvcAmd64, flags)) Environment.Exit(1);
-                if (!Build.BuildSolutionCMake("Plugins", BuildGenerator.Ninja, BuildToolchain.ClangMsvcAmd64, flags)) Environment.Exit(1);
                 if (!Build.CopyTextFiles(true, flags)) Environment.Exit(1);
                 if (!Build.BuildBinZip(flags)) Environment.Exit(1);
                 if (!Build.CopyTextFiles(false, flags)) Environment.Exit(1);
 
                 Build.ShowBuildStats();
-            }, verboseOption);
+            });
             return cmd;
         }
 
@@ -745,14 +791,14 @@ namespace CustomBuildTool
         private static Command CreateCMakeReleaseCommand(Option<bool> verboseOption)
         {
             var cmd = new Command("-cmake-release", "Builds release configuration using CMake (clang).");
-            cmd.SetHandler((bool verbose) =>
+            cmd.SetAction(parseResult =>
             {
+                bool verbose = parseResult.GetValue(verboseOption);
                 BuildToolsId.CheckForOutOfDateTools();
                 BuildFlags flags = BuildFlags.Release | BuildFlags.BuildCMake | (verbose ? BuildFlags.BuildVerbose : BuildFlags.None);
                 Build.SetupBuildEnvironment(true);
 
                 if (!Build.BuildSolutionCMake("SystemInformer", BuildGenerator.Ninja, BuildToolchain.ClangMsvcAmd64, flags)) Environment.Exit(1);
-                if (!Build.BuildSolutionCMake("Plugins", BuildGenerator.Ninja, BuildToolchain.ClangMsvcAmd64, flags)) Environment.Exit(1);
                 if (!Build.CopyWow64Files(flags)) Environment.Exit(1);
                 if (!Build.CopyTextFiles(true, flags)) Environment.Exit(1);
                 if (!Build.BuildBinZip(flags)) Environment.Exit(1);
@@ -767,7 +813,7 @@ namespace CustomBuildTool
                 if (!Build.BuildChecksumsFile()) Environment.Exit(1);
 
                 Build.ShowBuildStats();
-            }, verboseOption);
+            });
             return cmd;
         }
 
@@ -779,8 +825,9 @@ namespace CustomBuildTool
         private static Command CreateCMakePipelineBuildCommand(Option<bool> verboseOption)
         {
             var cmd = new Command("-cmake-pipeline-build", "Performs pipeline build operations using CMake (clang).");
-            cmd.SetHandler((bool verbose) =>
+            cmd.SetAction(parseResult =>
             {
+                bool verbose = parseResult.GetValue(verboseOption);
                 BuildFlags flags = BuildFlags.Release | BuildFlags.BuildCMake | (verbose ? BuildFlags.BuildVerbose : BuildFlags.None);
 
                 BuildToolsId.CheckForOutOfDateTools();
@@ -793,7 +840,7 @@ namespace CustomBuildTool
 
                 Build.CopyWow64Files(flags);
                 Build.ShowBuildStats();
-            }, verboseOption);
+            });
             return cmd;
         }
 
@@ -805,8 +852,9 @@ namespace CustomBuildTool
         private static Command CreateCMakePipelinePackageCommand(Option<bool> verboseOption)
         {
             var cmd = new Command("-cmake-pipeline-package", "Packages pipeline artifacts using CMake (clang).");
-            cmd.SetHandler((bool verbose) =>
+            cmd.SetAction(parseResult =>
             {
+                bool verbose = parseResult.GetValue(verboseOption);
                 BuildToolsId.CheckForOutOfDateTools();
                 BuildFlags flags = BuildFlags.Release | BuildFlags.BuildCMake | (verbose ? BuildFlags.BuildVerbose : BuildFlags.None);
                 Build.SetupBuildEnvironment(true);
@@ -822,7 +870,7 @@ namespace CustomBuildTool
 
                 if (!Build.CopyTextFiles(false, flags)) Environment.Exit(1);
                 Build.ShowBuildStats();
-            }, verboseOption);
+            });
             return cmd;
         }
 
@@ -834,8 +882,9 @@ namespace CustomBuildTool
         private static Command CreateCMakePipelineDeployCommand(Option<bool> verboseOption)
         {
             var cmd = new Command("-cmake-pipeline-deploy", "Deploys pipeline artifacts using CMake (clang).");
-            cmd.SetHandler(async (bool verbose) =>
+            cmd.SetAction(async parseResult =>
             {
+                bool verbose = parseResult.GetValue(verboseOption);
                 BuildToolsId.CheckForOutOfDateTools();
                 BuildFlags flags = BuildFlags.Release | BuildFlags.BuildCMake | (verbose ? BuildFlags.BuildVerbose : BuildFlags.None);
                 Build.SetupBuildEnvironment(true);
@@ -843,7 +892,7 @@ namespace CustomBuildTool
                 if (!Build.BuildPdbZip(false, flags)) Environment.Exit(1);
                 if (!await BuildDeploy.BuildUpdateServerConfig()) Environment.Exit(1);
                 Build.ShowBuildStats();
-            }, verboseOption);
+            });
             return cmd;
         }
 
@@ -854,7 +903,7 @@ namespace CustomBuildTool
         private static Command CreateCheckThirdPartyCommand()
         {
             var cmd = new Command("-check-thirdparty", "Checks thirdparty library versions against latest GitHub releases.");
-            cmd.SetHandler(async () =>
+            cmd.SetAction(async _ =>
             {
                 BuildToolsId.CheckForOutOfDateTools();
                 await BuildThirdParty.CheckThirdPartyVersions();
@@ -917,56 +966,6 @@ namespace CustomBuildTool
         }
 
         /// <summary>
-        /// Prints a colorized message to the console using an interpolated string handler.
-        /// </summary>
-        /// <param name="builder">The interpolated string builder.</param>
-        /// <param name="Color">The console color to use.</param>
-        /// <param name="Newline">Whether to append a newline.</param>
-        /// <param name="Flags">Build flags for verbosity control.</param>
-        public static void PrintColorMessage(LogInterpolatedStringHandler builder, ConsoleColor Color, bool Newline = true, BuildFlags Flags = BuildFlags.BuildVerbose)
-        {
-            if ((Flags & BuildFlags.BuildVerbose) == 0) return;
-
-            var formattedText = builder.GetFormattedText();
-            if (Build.BuildIntegration)
-            {
-                var colour_ansi = ToAnsiCode(Color);
-                if (formattedText.Contains('\n', StringComparison.OrdinalIgnoreCase))
-                {
-                    var sb = new StringBuilder(formattedText.Length + 16);
-                    int start = 0;
-                    for (int i = 0; i < formattedText.Length; i++)
-                    {
-                        if (formattedText[i] == '\n')
-                        {
-                            sb.Append(colour_ansi);
-                            sb.Append(formattedText, start, i - start + 1);
-                            start = i + 1;
-                        }
-                    }
-                    if (start < formattedText.Length) sb.Append(colour_ansi).Append(formattedText, start, formattedText.Length - start);
-                    sb.Append("\e[0m");
-
-                    if (Newline) Console.WriteLine(sb.ToString());
-                    else Console.Write(sb.ToString());
-                }
-                else
-                {
-                    var color_reset = $"{colour_ansi}{formattedText}\e[0m";
-                    if (Newline) Console.WriteLine(color_reset);
-                    else Console.Write(color_reset);
-                }
-            }
-            else
-            {
-                Console.ForegroundColor = Color;
-                if (Newline) Console.WriteLine(formattedText);
-                else Console.Write(formattedText);
-                Console.ResetColor();
-            }
-        }
-
-        /// <summary>
         /// Converts a <see cref="ConsoleColor"/> to its ANSI escape sequence.
         /// </summary>
         /// <param name="color">The console color.</param>
@@ -1003,7 +1002,7 @@ namespace CustomBuildTool
         /// <returns>A formatted string with the terminal escape sequence for a hyperlink.</returns>
         public static string CreateConsoleHyperlink(string Uri, string Text)
         {
-            return $"\x1B]8;;{Uri}\x1B\\{Text}\x1B]8;;\x1B\\";
+            return $"\e]8;;{Uri}\e\\{Text}\e]8;;\e\\";
         }
     }
 }

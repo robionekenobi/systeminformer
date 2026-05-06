@@ -212,7 +212,7 @@ namespace CustomBuildTool
                     {
                         var files = Utils.EnumerateDirectory(Path, [".exe", ".dll"], ["ksi.dll"]);
 
-                        if (files == null || files.Count == 0)
+                        if (files == null || files.Count() == 0)
                         {
                             Program.PrintColorMessage($"No files found.", ConsoleColor.Red);
                         }
@@ -300,19 +300,35 @@ namespace CustomBuildTool
             try
             {
                 // Build body directly as bytes to minimize secret exposure in string form
-                var clientIdBytes = Encoding.UTF8.GetBytes($"client_id={Uri.EscapeDataString(ClientId)}&");
-                var scopeBytes = Encoding.UTF8.GetBytes($"scope={Uri.EscapeDataString("https://vault.azure.net/.default")}&");
-                var secretBytes = Encoding.UTF8.GetBytes($"client_secret={Uri.EscapeDataString(ClientSecret)}&");
-                var grantBytes = Encoding.UTF8.GetBytes("grant_type=client_credentials");
+                int maxLen = Encoding.UTF8.GetMaxByteCount(ClientId.Length + ClientSecret.Length + 128);
+                byte[] buffer = ArrayPool<byte>.Shared.Rent(maxLen);
+                try
+                {
+                    int written = 0;
+                    Span<byte> span = buffer;
 
-                bodyBytes = new byte[clientIdBytes.Length + scopeBytes.Length + secretBytes.Length + grantBytes.Length];
-                Buffer.BlockCopy(clientIdBytes, 0, bodyBytes, 0, clientIdBytes.Length);
-                Buffer.BlockCopy(scopeBytes, 0, bodyBytes, clientIdBytes.Length, scopeBytes.Length);
-                Buffer.BlockCopy(secretBytes, 0, bodyBytes, clientIdBytes.Length + scopeBytes.Length, secretBytes.Length);
-                Buffer.BlockCopy(grantBytes, 0, bodyBytes, clientIdBytes.Length + scopeBytes.Length + secretBytes.Length, grantBytes.Length);
+                    ReadOnlySpan<byte> clientIdPrefix = "client_id="u8;
+                    clientIdPrefix.CopyTo(span[written..]);
+                    written += clientIdPrefix.Length;
+                    written += Encoding.UTF8.GetBytes(Uri.EscapeDataString(ClientId), span[written..]);
+                    span[written++] = (byte)'&';
 
-                // Zero intermediate buffers
-                System.Security.Cryptography.CryptographicOperations.ZeroMemory(secretBytes);
+                    ReadOnlySpan<byte> scopePrefix = "scope=https%3A%2F%2Fvault.azure.net%2F.default&client_secret="u8;
+                    scopePrefix.CopyTo(span[written..]);
+                    written += scopePrefix.Length;
+                    written += Encoding.UTF8.GetBytes(Uri.EscapeDataString(ClientSecret), span[written..]);
+                    span[written++] = (byte)'&';
+
+                    ReadOnlySpan<byte> grantPrefix = "grant_type=client_credentials"u8;
+                    grantPrefix.CopyTo(span[written..]);
+                    written += grantPrefix.Length;
+
+                    bodyBytes = span[..written].ToArray();
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(buffer, clearArray: true);
+                }
 
                 using var tokenBody = new ByteArrayContent(bodyBytes);
                 tokenBody.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/x-www-form-urlencoded");

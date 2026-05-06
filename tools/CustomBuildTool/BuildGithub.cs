@@ -106,57 +106,47 @@ namespace CustomBuildTool
         /// Downloads the GitHub meta IP ranges and returns them as a list of strings.
         /// </summary>
         /// <returns>A list of IP address ranges from the GitHub meta endpoint, or <c>null</c> on error.</returns>
-        public static async Task<List<string>> DownloadGithubIpRanges()
+        public static async IAsyncEnumerable<string> DownloadGithubIpRanges([EnumeratorCancellation] CancellationToken CancellationToken = default)
         {
-            try
+            using (HttpRequestMessage requestMessage = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/meta"))
             {
-                using (HttpRequestMessage requestMessage = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/meta"))
+                requestMessage.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+                requestMessage.Headers.TryAddWithoutValidation("X-GitHub-Api-Version", "2022-11-28");
+
+                using var response = await BuildHttpClient.SendMessageResponse(GithubHttpClient, requestMessage);
+                if (response == null || !response.IsSuccessStatusCode)
                 {
-                    requestMessage.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
-                    requestMessage.Headers.TryAddWithoutValidation("X-GitHub-Api-Version", "2022-11-28");
+                    Program.PrintColorMessage("[DownloadGithubIpRanges] response failed", ConsoleColor.Red);
+                    yield break;
+                }
 
-                    using var response = await BuildHttpClient.SendMessageResponse(GithubHttpClient, requestMessage);
-                    if (response == null || !response.IsSuccessStatusCode)
+                await using Stream stream = await response.Content.ReadAsStreamAsync(CancellationToken);
+                var meta = await JsonSerializer.DeserializeAsync(stream, GithubResponseContext.Default.DictionaryStringJsonElement, CancellationToken);
+                if (meta == null)
+                {
+                    Program.PrintColorMessage("[DownloadGithubIpRanges] invalid response", ConsoleColor.Red);
+                    yield break;
+                }
+
+                var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var property in meta)
+                {
+                    if (property.Value.ValueKind != JsonValueKind.Array)
+                        continue;
+
+                    foreach (var entry in property.Value.EnumerateArray())
                     {
-                        Program.PrintColorMessage("[DownloadGithubIpRanges] response failed", ConsoleColor.Red);
-                        return null;
-                    }
-
-                    await using Stream stream = await response.Content.ReadAsStreamAsync();
-                    var meta = await JsonSerializer.DeserializeAsync(stream, GithubResponseContext.Default.DictionaryStringJsonElement);
-                    if (meta == null)
-                    {
-                        Program.PrintColorMessage("[DownloadGithubIpRanges] invalid response", ConsoleColor.Red);
-                        return null;
-                    }
-
-                    var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-                    foreach (var property in meta)
-                    {
-                        if (property.Value.ValueKind != JsonValueKind.Array)
+                        if (entry.ValueKind != JsonValueKind.String)
                             continue;
 
-                        foreach (var entry in property.Value.EnumerateArray())
+                        var value = entry.GetString();
+                        if (IsIpRange(value) && results.Add(value))
                         {
-                            if (entry.ValueKind != JsonValueKind.String)
-                                continue;
-
-                            var value = entry.GetString();
-                            if (IsIpRange(value))
-                            {
-                                results.Add(value);
-                            }
+                            yield return value;
                         }
                     }
-
-                    return results.ToList();
                 }
-            }
-            catch (Exception ex)
-            {
-                Program.PrintColorMessage("[DownloadGithubIpRanges] " + ex, ConsoleColor.Red);
-                return null;
             }
 
             static bool IsIpRange(string value)
@@ -164,8 +154,9 @@ namespace CustomBuildTool
                 if (string.IsNullOrWhiteSpace(value))
                     return false;
 
-                var slashIndex = value.IndexOf('/', StringComparison.OrdinalIgnoreCase);
-                var address = slashIndex >= 0 ? value[..slashIndex] : value;
+                ReadOnlySpan<char> span = value.AsSpan();
+                var slashIndex = span.IndexOf('/');
+                var address = slashIndex >= 0 ? span[..slashIndex] : span;
 
                 return IPAddress.TryParse(address, out _);
             }
