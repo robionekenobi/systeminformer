@@ -148,6 +148,10 @@ VOID WepRefreshWindows(
     _In_ PWINDOWS_CONTEXT Context
     )
 {
+    // The tree is rebuilt below using the synchronous enumeration, which does not necessarily
+    // cover the same windows as the provider. Make the provider re-raise every window so the
+    // tree ends up with the same contents as an initial population.
+    WeResetWindowProvider(Context->WindowProvider);
     PhBoostProvider(&Context->ProviderRegistration, NULL);
 
     TreeNew_SetRedraw(Context->TreeNewHandle, FALSE);
@@ -161,6 +165,24 @@ VOID WepRefreshWindows(
     }
     TreeNew_NodesStructured(Context->TreeNewHandle);
     TreeNew_SetRedraw(Context->TreeNewHandle, TRUE);
+}
+
+VOID WepToggleProviderPaused(
+    _In_ PWINDOWS_CONTEXT Context
+    )
+{
+    Context->ProviderPaused = !Context->ProviderPaused;
+
+    PhSetEnabledProvider(&Context->ProviderRegistration, !Context->ProviderPaused);
+
+    if (Context->ProviderPaused)
+    {
+        SetWindowText(Context->PauseResumeButtonHandle, L"Resume");
+    }
+    else
+    {
+        SetWindowText(Context->PauseResumeButtonHandle, L"Pause");
+    }
 }
 
 //VOID WepEnumerateParentChildWindows(
@@ -992,7 +1014,6 @@ VOID WeSnapshotModeStart(
     _In_ PWINDOWS_CONTEXT Context
     )
 {
-    CLIENT_ID clientId;
     PWE_WINDOW_NODE windowNode;
     HWND selectedWindow;
 
@@ -1009,20 +1030,16 @@ VOID WeSnapshotModeStart(
         if (hungWindow)
             selectedWindow = hungWindow;
 
-        // Check if it's not our own process
-        if (NT_SUCCESS(PhGetWindowClientId(selectedWindow, &clientId)) &&
-            clientId.UniqueProcess != NtCurrentProcessId())
+        // Find and select the window node in the tree. Windows belonging to this process are
+        // valid targets too (for example when viewing System Informer's own windows).
+        if (windowNode = WeFindWindowNode(&Context->TreeContext, selectedWindow))
         {
-            // Find and select the window node in the tree
-            if (windowNode = WeFindWindowNode(&Context->TreeContext, selectedWindow))
-            {
-                WeSelectAndEnsureVisibleWindowNodes(&Context->TreeContext, &windowNode, 1);
-                SetFocus(Context->TreeNewHandle);
-            }
-            else
-            {
-                WeDeselectAllWindowNodes(&Context->TreeContext);
-            }
+            WeSelectAndEnsureVisibleWindowNodes(&Context->TreeContext, &windowNode, 1);
+            SetFocus(Context->TreeNewHandle);
+        }
+        else
+        {
+            WeDeselectAllWindowNodes(&Context->TreeContext);
         }
     }
 }
@@ -1967,18 +1984,7 @@ INT_PTR CALLBACK WepWindowsDlgProc(
                 break;
             case IDC_PAUSERESUME:
                 {
-                    context->ProviderPaused = !context->ProviderPaused;
-
-                    PhSetEnabledProvider(&context->ProviderRegistration, !context->ProviderPaused);
-
-                    if (context->ProviderPaused)
-                    {
-                        SetWindowText(context->PauseResumeButtonHandle, L"Resume");
-                    }
-                    else
-                    {
-                        SetWindowText(context->PauseResumeButtonHandle, L"Pause");
-                    }
+                    WepToggleProviderPaused(context);
                 }
                 break;
             }
@@ -2269,6 +2275,7 @@ INT_PTR CALLBACK WepWindowsPageProc(
             context->TreeNewHandle = GetDlgItem(WindowHandle, IDC_LIST);
             context->SearchBoxHandle = GetDlgItem(WindowHandle, IDC_SEARCHEDIT);
             context->FindWindowButtonHandle = GetDlgItem(WindowHandle, IDC_FINDWINDOW);
+            context->PauseResumeButtonHandle = GetDlgItem(WindowHandle, IDC_PAUSERESUME);
             context->TreeWindowFont = PhCreateTreeWindowFont(PhGetWindowDpi(WindowHandle));
 
             WeInitializeWindowTree(WindowHandle, context->TreeNewHandle, &context->TreeContext);
@@ -2577,6 +2584,11 @@ INT_PTR CALLBACK WepWindowsPageProc(
                     WepRefreshWindows(context);
 
                     PhApplyTreeNewFilters(&context->TreeContext.FilterSupport);
+                }
+                break;
+            case IDC_PAUSERESUME:
+                {
+                    WepToggleProviderPaused(context);
                 }
                 break;
             case IDC_OPTIONS:
