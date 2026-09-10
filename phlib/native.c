@@ -865,6 +865,12 @@ NTSTATUS PhGetProcessUnloadedDlls(
         goto CleanupExit;
     }
 
+    if (capturedElementSize < sizeof(RTL_UNLOAD_EVENT_TRACE))
+    {
+        status = STATUS_INVALID_BUFFER_SIZE;
+        goto CleanupExit;
+    }
+
     if (capturedElementCount > 0x4000)
         capturedElementCount = 0x4000;
 

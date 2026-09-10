@@ -91,20 +91,6 @@ NTSTATUS PhCreateFileWin32(
  * \li \c FILE_DOES_NOT_EXIST The file was not opened because it did not exist and \c FILE_OPEN or
  * \c FILE_OVERWRITE was specified in \a CreateDisposition.
  */
-/**
- * Creates or opens a file with extended options.
- *
- * \param FileHandle A variable that receives the file handle.
- * \param FileName The Win32 file name.
- * \param DesiredAccess The desired access to the file.
- * \param AllocationSize The initial allocation size if the file is being created, overwritten, or superseded.
- * \param FileAttributes File attributes applied if the file is created or overwritten.
- * \param ShareAccess The file access granted to other threads.
- * \param CreateDisposition The action to perform if the file does or does not exist.
- * \param CreateOptions The options to apply when the file is opened or created.
- * \param CreateStatus A variable that receives creation information.
- * \return NTSTATUS Successful or errant status.
- */
 NTSTATUS PhCreateFileWin32Ex(
     _Out_ PHANDLE FileHandle,
     _In_ PCWSTR FileName,
@@ -301,7 +287,7 @@ NTSTATUS PhCreateFileWin32ExAlt(
  * Creates or opens a file.
  *
  * \param FileHandle A variable that receives the file handle.
- * \param FileName The Win32 file name.
+ * \param FileName The native file name.
  * \param DesiredAccess The desired access to the file.
  * \param FileAttributes File attributes applied if the file is created or overwritten.
  * \param ShareAccess The file access granted to other threads.
@@ -394,7 +380,7 @@ NTSTATUS PhCreateFile(
  * Creates or opens a file.
  *
  * \param FileHandle A variable that receives the file handle.
- * \param FileName The Win32 file name.
+ * \param FileName The native file name.
  * \param DesiredAccess The desired access to the file.
  * \param RootDirectory The root object directory for the file.
  * \param AllocationSize The initial allocation size if the file is being created, overwritten, or superseded.
@@ -3069,7 +3055,15 @@ NTSTATUS PhpQueryFileVariableSize(
 
     if (NT_SUCCESS(status))
     {
-        *Buffer = buffer;
+        if (ioStatusBlock.Information == 0)
+        {
+            PhFree(buffer);
+            status = STATUS_NO_MORE_ENTRIES;
+        }
+        else
+        {
+            *Buffer = buffer;
+        }
     }
     else
     {
@@ -3084,7 +3078,7 @@ NTSTATUS PhpQueryFileVariableSize(
  *
  * \param FileHandle Handle to the file.
  * \param Streams Receives a pointer to the allocated buffer with stream information.
- * \return NTSTATUS Successful or errant status.
+ * \return NTSTATUS Successful or errant status. STATUS_NO_MORE_ENTRIES when the file has no streams.
  */
 NTSTATUS PhEnumFileStreams(
     _In_ HANDLE FileHandle,
@@ -3103,7 +3097,7 @@ NTSTATUS PhEnumFileStreams(
  *
  * \param FileHandle Handle to the file.
  * \param HardLinks Receives a pointer to the allocated buffer with hard link information.
- * \return NTSTATUS Successful or errant status.
+ * \return NTSTATUS Successful or errant status. STATUS_NO_MORE_ENTRIES when the file has no links.
  */
 NTSTATUS PhEnumFileHardLinks(
     _In_ HANDLE FileHandle,

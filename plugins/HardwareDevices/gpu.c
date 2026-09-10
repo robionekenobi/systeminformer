@@ -10,7 +10,7 @@
  */
 
 #include "devices.h"
-#include "../ExtendedTools/extension/plugin.h"
+#include <extendedtoolsintf.h>
 
 BOOLEAN GraphicsGraphShowText = FALSE;
 BOOLEAN GraphicsEnableScaleGraph = FALSE;
@@ -471,7 +471,8 @@ PEXTENDEDTOOLS_INTERFACE GraphicsDeviceGetPluginInterface(
         {
             pluginInterface = PhGetPluginInformation(toolStatusPlugin)->Interface;
 
-            if (pluginInterface->Version < EXTENDEDTOOLS_INTERFACE_VERSION)
+            // A plugin that is loaded need not publish an interface.
+            if (pluginInterface && pluginInterface->Version < EXTENDEDTOOLS_INTERFACE_VERSION)
                 pluginInterface = NULL;
         }
 

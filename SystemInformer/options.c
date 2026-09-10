@@ -3581,10 +3581,12 @@ INT_PTR CALLBACK PhpOptionsAdvancedDlgProc(
             context->TreeNewHandle = GetDlgItem(hwndDlg, IDC_SETTINGS);
             context->SearchBoxHandle = GetDlgItem(hwndDlg, IDC_SEARCH);
 
-            PhCreateSearchControl(
+            PhCreateSearchControl2(
                 hwndDlg,
                 context->SearchBoxHandle,
                 L"Search settings...",
+                SETTING_SEARCH_OPTIONS_REGEX,
+                SETTING_SEARCH_OPTIONS_CASE_SENSITIVE,
                 PhpOptionsAdvancedSearchControlCallback,
                 context
                 );

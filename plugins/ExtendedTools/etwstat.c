@@ -145,6 +145,53 @@ VOID EtEtwStatisticsUninitialization(
     EtEtwMonitorUninitialization();
 }
 
+// EXTENDEDTOOLS_INTERFACE
+BOOLEAN EtLookupProcessIoStatistics(
+    _In_ HANDLE ProcessId,
+    _Out_ PEXTENDEDTOOLS_PROCESS_IO Statistics
+    )
+{
+    PPH_PROCESS_ITEM processItem;
+    PET_PROCESS_BLOCK block;
+
+    if (!(processItem = PhReferenceProcessItem(ProcessId)))
+        return FALSE;
+
+    block = EtGetProcessBlock(processItem);
+
+    memset(Statistics, 0, sizeof(EXTENDEDTOOLS_PROCESS_IO));
+    Statistics->EtwEnabled = EtEtwEnabled;
+    Statistics->DiskCountersEnabled = EtDiskCountersEnabled;
+    Statistics->HaveSample = block->HaveDiskSample;
+
+    Statistics->DiskReadBytes = block->DiskReadRaw;
+    Statistics->DiskWriteBytes = block->DiskWriteRaw;
+    Statistics->NetworkReceiveBytes = block->NetworkReceiveRaw;
+    Statistics->NetworkSendBytes = block->NetworkSendRaw;
+
+    Statistics->DiskReadCount = block->DiskReadCount;
+    Statistics->DiskWriteCount = block->DiskWriteCount;
+    Statistics->NetworkReceiveCount = block->NetworkReceiveCount;
+    Statistics->NetworkSendCount = block->NetworkSendCount;
+
+    Statistics->DiskReadBytesDelta = block->DiskReadRawDelta.Delta;
+    Statistics->DiskWriteBytesDelta = block->DiskWriteRawDelta.Delta;
+    Statistics->NetworkReceiveBytesDelta = block->NetworkReceiveRawDelta.Delta;
+    Statistics->NetworkSendBytesDelta = block->NetworkSendRawDelta.Delta;
+
+    Statistics->DiskReadCountDelta = block->DiskReadDelta.Delta;
+    Statistics->DiskWriteCountDelta = block->DiskWriteDelta.Delta;
+    Statistics->NetworkReceiveCountDelta = block->NetworkReceiveDelta.Delta;
+    Statistics->NetworkSendCountDelta = block->NetworkSendDelta.Delta;
+
+    Statistics->DiskTotalBytesDeltaPeak = block->DiskTotalRawDeltaMax;
+    Statistics->NetworkTotalBytesDeltaPeak = block->NetworkTotalRawDeltaMax;
+
+    PhDereferenceObject(processItem);
+
+    return TRUE;
+}
+
 
 /**
  * Processes a disk I/O event and updates statistics.
@@ -360,17 +407,20 @@ VOID NTAPI EtEtwProcessesUpdatedCallback(
                 if (block->DiskWriteRaw < diskWriteRaw)
                     block->DiskWriteRaw = diskWriteRaw;
             }
+        }
 
-            if (EtWindowsVersion >= WINDOWS_11_24H2)
-            {
-                ULONG64 networkReadRaw = block->ProcessItem->NetworkCounters.BytesIn;
-                ULONG64 networkWriteRaw = block->ProcessItem->NetworkCounters.BytesOut;
+        // Outside the disk counters setting on purpose: these are the process provider's own
+        // network counters, which it reads on 24H2 whatever that setting says, and nesting them
+        // here reported a real zero for every process whenever disk counters were turned off.
+        if (EtWindowsVersion >= WINDOWS_11_24H2)
+        {
+            ULONG64 networkReadRaw = block->ProcessItem->NetworkCounters.BytesIn;
+            ULONG64 networkWriteRaw = block->ProcessItem->NetworkCounters.BytesOut;
 
-                if (block->NetworkReceiveRaw < networkReadRaw)
-                    block->NetworkReceiveRaw = networkReadRaw;
-                if (block->NetworkSendRaw < networkWriteRaw)
-                    block->NetworkSendRaw = networkWriteRaw;
-            }
+            if (block->NetworkReceiveRaw < networkReadRaw)
+                block->NetworkReceiveRaw = networkReadRaw;
+            if (block->NetworkSendRaw < networkWriteRaw)
+                block->NetworkSendRaw = networkWriteRaw;
         }
 
         PhUpdateDelta(&block->DiskReadDelta, block->DiskReadCount);

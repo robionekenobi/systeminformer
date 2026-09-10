@@ -710,12 +710,26 @@ BOOLEAN WhoisQueryServer(
     return FALSE;
 }
 
-_Function_class_(USER_THREAD_START_ROUTINE)
-NTSTATUS NetworkWhoisThreadStart(
-    _In_ PVOID Parameter
+static VOID NTAPI WhoisWindowProgress(
+    _In_ PCWSTR Message,
+    _In_opt_ PVOID Context
     )
 {
-    PNETWORK_WHOIS_CONTEXT context = (PNETWORK_WHOIS_CONTEXT)Parameter;
+    HWND windowHandle = Context;
+
+    if (windowHandle)
+        SendMessage(windowHandle, NTM_RECEIVEDWHOIS, 0, (LPARAM)PhCreateString((PWSTR)Message));
+}
+
+_Success_(return)
+BOOLEAN NetworkToolsQueryWhois(
+    _In_ PCWSTR Address,
+    _In_ BOOLEAN Ipv6Support,
+    _In_opt_ PNETWORKTOOLS_WHOIS_PROGRESS Progress,
+    _In_opt_ PVOID Context,
+    _Out_ PPH_STRING* Response
+    )
+{
     WSADATA winsockStartup;
     PH_STRING_BUILDER stringBuilder;
     PPH_STRING whoisResponse = NULL;
@@ -723,21 +737,20 @@ NTSTATUS NetworkWhoisThreadStart(
     PPH_STRING whoisServerName = NULL;
     PPH_STRING whoisReferralServerName = NULL;
     USHORT whoisReferralServerPort = IPPORT_WHOIS;
+    BOOLEAN answered = FALSE;
 
     if (WSAStartup(WINSOCK_VERSION, &winsockStartup) != ERROR_SUCCESS)
     {
-        PhDereferenceObject(context);
-        return STATUS_FAIL_CHECK;
+        *Response = PhCreateString(L"Windows sockets could not be started.\n");
+        return FALSE;
     }
 
     PhInitializeStringBuilder(&stringBuilder, 0x100);
 
-    if (context->WindowHandle)
-    {
-        SendMessage(context->WindowHandle, NTM_RECEIVEDWHOIS, 0, (LPARAM)PhCreateString(L"Connecting to whois.iana.org..."));
-    }
+    if (Progress)
+        Progress(L"Connecting to whois.iana.org...", Context);
 
-    if (!WhoisQueryServer(L"whois.iana.org", IPPORT_WHOIS, context->RemoteAddressString, context->Ipv6Support, &whoisResponse))
+    if (!WhoisQueryServer(L"whois.iana.org", IPPORT_WHOIS, (PWSTR)Address, Ipv6Support, &whoisResponse))
     {
         PhAppendFormatStringBuilder(&stringBuilder, L"Connection to whois.iana.org failed.\n");
         goto CleanupExit;
@@ -749,16 +762,19 @@ NTSTATUS NetworkWhoisThreadStart(
         goto CleanupExit;
     }
 
-    if (context->WindowHandle)
+    if (Progress)
     {
-        SendMessage(context->WindowHandle, NTM_RECEIVEDWHOIS, 0, (LPARAM)PhFormatString(L"Connecting to %s...", PhGetStringOrEmpty(whoisServerName)));
+        PPH_STRING message = PhFormatString(L"Connecting to %s...", PhGetStringOrEmpty(whoisServerName));
+
+        Progress(PhGetString(message), Context);
+        PhDereferenceObject(message);
     }
 
     if (WhoisQueryServer(
         PhGetString(whoisServerName),
         IPPORT_WHOIS,
-        context->RemoteAddressString,
-        context->Ipv6Support,
+        (PWSTR)Address,
+        Ipv6Support,
         &whoisResponse
         ))
     {
@@ -768,13 +784,16 @@ NTSTATUS NetworkWhoisThreadStart(
             &whoisReferralServerPort
             ))
         {
-            if (context->WindowHandle)
+            if (Progress)
             {
-                SendMessage(context->WindowHandle, NTM_RECEIVEDWHOIS, 0, (LPARAM)PhFormatString(
+                PPH_STRING message = PhFormatString(
                     L"%s referred the request to %s\n",
                     PhGetString(whoisServerName),
                     PhGetString(whoisReferralServerName)
-                    ));
+                    );
+
+                Progress(PhGetString(message), Context);
+                PhDereferenceObject(message);
             }
 
             PhAppendFormatStringBuilder(
@@ -787,13 +806,14 @@ NTSTATUS NetworkWhoisThreadStart(
             if (WhoisQueryServer(
                 PhGetString(whoisReferralServerName),
                 whoisReferralServerPort,
-                context->RemoteAddressString,
-                context->Ipv6Support,
+                (PWSTR)Address,
+                Ipv6Support,
                 &whoisReferralResponse
                 ))
             {
                 PhAppendFormatStringBuilder(&stringBuilder, L"\n%s\n", PhGetString(whoisReferralResponse));
                 PhAppendFormatStringBuilder(&stringBuilder, L"\nOriginal request to %s:\n%s\n", PhGetString(whoisServerName), PhGetString(whoisResponse));
+                answered = TRUE;
                 goto CleanupExit;
             }
         }
@@ -805,13 +825,9 @@ NTSTATUS NetworkWhoisThreadStart(
     }
 
     PhAppendFormatStringBuilder(&stringBuilder, L"\n%s", PhGetString(whoisResponse));
+    answered = TRUE;
 
 CleanupExit:
-
-    if (context->WindowHandle)
-        PostMessage(context->WindowHandle, NTM_RECEIVEDWHOIS, 0, (LPARAM)PhFinalStringBuilderString(&stringBuilder));
-    else
-        PhDeleteStringBuilder(&stringBuilder);
 
     WSACleanup();
 
@@ -823,6 +839,42 @@ CleanupExit:
         PhDereferenceObject(whoisServerName);
     if (whoisReferralServerName)
         PhDereferenceObject(whoisReferralServerName);
+
+    *Response = PhFinalStringBuilderString(&stringBuilder);
+
+    return answered;
+}
+
+// NETWORKTOOLS_INTERFACE
+BOOLEAN NTAPI NetworkToolsWhoisQuery(
+    _In_ PCWSTR Address,
+    _In_ BOOLEAN Ipv6Support,
+    _Out_ PPH_STRING* Response
+    )
+{
+    return NetworkToolsQueryWhois(Address, Ipv6Support, NULL, NULL, Response);
+}
+
+_Function_class_(USER_THREAD_START_ROUTINE)
+NTSTATUS NetworkWhoisThreadStart(
+    _In_ PVOID Parameter
+    )
+{
+    PNETWORK_WHOIS_CONTEXT context = (PNETWORK_WHOIS_CONTEXT)Parameter;
+    PPH_STRING whoisResponse = NULL;
+
+    NetworkToolsQueryWhois(
+        context->RemoteAddressString,
+        context->Ipv6Support,
+        WhoisWindowProgress,
+        context->WindowHandle,
+        &whoisResponse
+        );
+
+    if (context->WindowHandle)
+        PostMessage(context->WindowHandle, NTM_RECEIVEDWHOIS, 0, (LPARAM)whoisResponse);
+    else if (whoisResponse)
+        PhDereferenceObject(whoisResponse);
 
     PhDereferenceObject(context);
 
@@ -874,6 +926,33 @@ VOID WhoisParseAddressString(
             Context->RemoteAddressValid = TRUE;
         }
     }
+}
+
+/**
+ * Determines whether a hyperlink detected in the whois response may be passed to the shell.
+ *
+ * \param Hyperlink The text of the hyperlink clicked by the user.
+ *
+ * \return TRUE if the hyperlink uses an allowed scheme, otherwise FALSE.
+ */
+BOOLEAN WhoisIsAllowedHyperlink(
+    _In_ PCPH_STRINGREF Hyperlink
+    )
+{
+    static PCWSTR allowedSchemes[] =
+    {
+        L"http://",
+        L"https://",
+        L"mailto:",
+    };
+
+    for (ULONG i = 0; i < RTL_NUMBER_OF(allowedSchemes); i++)
+    {
+        if (PhStartsWithStringRef2(Hyperlink, allowedSchemes[i], TRUE))
+            return TRUE;
+    }
+
+    return FALSE;
 }
 
 INT_PTR CALLBACK WhoisDlgProc(
@@ -995,7 +1074,11 @@ INT_PTR CALLBACK WhoisDlgProc(
 
                         if (SendMessage(context->RichEditHandle, EM_GETTEXTRANGE, 0, (LPARAM)&textRange))
                         {
-                            if (PhCountStringZ(buffer) > 4)
+                            PH_STRINGREF hyperlink;
+
+                            PhInitializeStringRefLongHint(&hyperlink, buffer);
+
+                            if (WhoisIsAllowedHyperlink(&hyperlink))
                             {
                                 PhShellExecute(context->WindowHandle, buffer, NULL);
                             }
@@ -1011,7 +1094,14 @@ INT_PTR CALLBACK WhoisDlgProc(
     case NTM_RECEIVEDWHOIS:
         {
             PPH_STRING whoisString = PH_AUTO((PPH_STRING)lParam);
-            PPH_STRING trimString = PH_AUTO(TrimString2(whoisString));
+            PPH_STRING trimString;
+
+            // The query posts whatever it produced, and it produces nothing at all when sockets
+            // could not be started; the pre-refactor code returned before ever posting.
+            if (!whoisString)
+                break;
+
+            trimString = PH_AUTO(TrimString2(whoisString));
 
             RichEditSetText(context->RichEditHandle, trimString->Buffer);
         }

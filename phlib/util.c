@@ -6316,7 +6316,7 @@ NTSTATUS PhCreateProcessAsUser(
             return status;
         }
     }
-     
+
     // Set the Logon ID if needed.
 
     if (Flags & PH_CREATE_PROCESS_SET_LOGON_ID)
@@ -6604,13 +6604,7 @@ NTSTATUS PhGetSecurityDescriptorAsString(
         &stringSecurityDescriptorLength
         ))
     {
-        if (stringSecurityDescriptorLength & 1) // validate the string length
-        {
-            LocalFree(stringSecurityDescriptor);
-            return STATUS_FAIL_CHECK;
-        }
-
-        *SecurityDescriptorString = PhCreateStringEx(
+        *SecurityDescriptorString = PhCreateStringZ2(
             stringSecurityDescriptor,
             stringSecurityDescriptorLength * sizeof(WCHAR)
             );
@@ -9228,8 +9222,7 @@ PPH_STRING PhCreateCacheFile(
     WCHAR randomAlphaString[32] = L"";
     SIZE_T i;
 
-    // FileName is treated as a trusted leaf name and appended directly to the cache directory. 
-    // Reject path separators and traversal so a caller cannot escape the cache directory.
+    // FileName becomes a leaf name: reject separators, traversal, streams and control characters.
 
     if (PhIsNullOrEmptyString(FileName))
         return NULL;

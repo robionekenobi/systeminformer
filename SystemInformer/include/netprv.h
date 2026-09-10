@@ -71,6 +71,19 @@ typedef struct _PH_NETWORK_ITEM
     PPH_PROCESS_ITEM ProcessItem;
     PH_HASH_ENTRY HashEntry;
 } PH_NETWORK_ITEM, *PPH_NETWORK_ITEM;
+
+typedef struct _PH_NETWORK_CONNECTION
+{
+    ULONG ProtocolType;
+    PH_IP_ENDPOINT LocalEndpoint;
+    PH_IP_ENDPOINT RemoteEndpoint;
+    MIB_TCP_STATE State;
+    HANDLE ProcessId;
+    LARGE_INTEGER CreateTime;
+    ULONGLONG OwnerInfo[PH_NETWORK_OWNER_INFO_SIZE];
+    ULONG LocalScopeId; // Ipv6
+    ULONG RemoteScopeId; // Ipv6
+} PH_NETWORK_CONNECTION, *PPH_NETWORK_CONNECTION;
 // end_phapppub
 
 BOOLEAN PhNetworkProviderInitialization(
@@ -107,6 +120,15 @@ PhEnumNetworkItemsByProcessId(
     _In_opt_ HANDLE ProcessId,
     _Out_opt_ PPH_NETWORK_ITEM** NetworkItems,
     _Out_ PULONG NumberOfNetworkItems
+    );
+
+_Success_(return)
+PHAPPAPI
+BOOLEAN
+NTAPI
+PhGetNetworkConnections(
+    _Out_ PPH_NETWORK_CONNECTION *Connections,
+    _Out_ PULONG NumberOfConnections
     );
 // end_phapppub
 
@@ -201,10 +223,13 @@ typedef ULONG (WINAPI *_InternalGetBoundTcp6EndpointTable)(
 
 // netsup
 
+// begin_phapppub
+PHAPPAPI
 NTSTATUS
 NTAPI
 PhSetTcpEntry(
     _In_ PPH_NETWORK_ITEM NetworkItem
     );
+// end_phapppub
 
 #endif

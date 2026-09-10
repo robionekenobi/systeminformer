@@ -303,6 +303,42 @@ VOID AdvanceRateLimitCutoff(
     } while (InterlockedCompareExchange64(Target, New, prev) != prev);
 }
 
+VOID ScanNoteVirusTotalHttpStatus(
+    _In_ ULONG HttpStatus
+    )
+{
+    LARGE_INTEGER systemTime;
+
+    if (HttpStatus == 429)
+    {
+        PhQuerySystemTime(&systemTime);
+        AdvanceRateLimitCutoff(&ScanVirusTotalRateLimitedUntil,
+            MakeExpiry(&systemTime, ScanRateLmtExpMin, ScanRateLmtExpMax));
+    }
+    else if (HttpStatus == 401 || HttpStatus == 403)
+    {
+        WriteRelease(&ScanVirusTotalUnauthorized, 1);
+    }
+}
+
+VOID ScanNoteHybridAnalysisHttpStatus(
+    _In_ ULONG HttpStatus
+    )
+{
+    LARGE_INTEGER systemTime;
+
+    if (HttpStatus == 429)
+    {
+        PhQuerySystemTime(&systemTime);
+        AdvanceRateLimitCutoff(&ScanHybridAnalysisRateLimitedUntil,
+            MakeExpiry(&systemTime, ScanRateLmtExpMin, ScanRateLmtExpMax));
+    }
+    else if (HttpStatus == 401 || HttpStatus == 403)
+    {
+        WriteRelease(&ScanHybridAnalysisUnauthorized, 1);
+    }
+}
+
 VOID SetScanResult(
     _In_ PSCAN_ITEM Item,
     _In_ PPH_STRING Result
@@ -621,6 +657,71 @@ VOID UpdateDBHybridAnalysis(
     PhReleaseQueuedLockExclusive(&ScanDBLock);
 
     PhDereferenceObject(iso);
+}
+
+VOID CacheVirusTotalReport(
+    _In_ PPH_STRING Hash,
+    _In_ ULONG HttpStatus,
+    _In_ ULONG64 Malicious,
+    _In_ ULONG64 Undetected
+    )
+{
+    LARGE_INTEGER systemTime;
+    LARGE_INTEGER expiry;
+
+    if (HttpStatus == 429 || HttpStatus == 401 || HttpStatus == 403)
+        return;
+
+    PhQuerySystemTime(&systemTime);
+
+    if (HttpStatus == 200)
+    {
+        expiry.QuadPart = MakeExpiry(&systemTime, ScanOKExpMin, ScanOKExpMax);
+        UpdateDBVirusTotal(Hash, HttpStatus, &expiry, Malicious, Undetected);
+    }
+    else
+    {
+        expiry.QuadPart = MakeExpiry(&systemTime, ScanNoResponseExpMin, ScanNoResponseExpMax);
+        UpdateDBVirusTotal(Hash, HttpStatus, &expiry, 0, 0);
+    }
+}
+
+VOID CacheHybridAnalysisReport(
+    _In_ PPH_STRING Hash,
+    _In_ ULONG HttpStatus,
+    _In_ ULONG64 MultiscanResult,
+    _In_opt_ PPH_STRING VxFamily,
+    _In_ ULONG64 ThreatScore,
+    _In_opt_ PPH_STRING Verdict
+    )
+{
+    LARGE_INTEGER systemTime;
+    LARGE_INTEGER expiry;
+    PPH_STRING vxFamily;
+    PPH_STRING verdict;
+
+    if (HttpStatus == 429 || HttpStatus == 401 || HttpStatus == 403)
+        return;
+
+    PhQuerySystemTime(&systemTime);
+
+    // UpdateDBHybridAnalysis binds both strings unconditionally.
+    vxFamily = VxFamily ? PhReferenceObject(VxFamily) : PhReferenceEmptyString();
+    verdict = Verdict ? PhReferenceObject(Verdict) : PhReferenceEmptyString();
+
+    if (HttpStatus == 200)
+    {
+        expiry.QuadPart = MakeExpiry(&systemTime, ScanOKExpMin, ScanOKExpMax);
+        UpdateDBHybridAnalysis(Hash, HttpStatus, &expiry, MultiscanResult, vxFamily, ThreatScore, verdict);
+    }
+    else
+    {
+        expiry.QuadPart = MakeExpiry(&systemTime, ScanNoResponseExpMin, ScanNoResponseExpMax);
+        UpdateDBHybridAnalysis(Hash, HttpStatus, &expiry, 0, vxFamily, 0, verdict);
+    }
+
+    PhDereferenceObject(vxFamily);
+    PhDereferenceObject(verdict);
 }
 
 BOOLEAN TryApplyHybridAnalysisCacheHit(

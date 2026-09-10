@@ -592,10 +592,12 @@ INT_PTR CALLBACK PhpProcessMemoryDlgProc(
             memoryContext->AllocationFilterEntry = PhAddTreeNewFilter(&memoryContext->ListContext.AllocationTreeFilterSupport, PhpMemoryTreeFilterCallback, memoryContext);
             memoryContext->FilterEntry = PhAddTreeNewFilter(&memoryContext->ListContext.TreeFilterSupport, PhpMemoryTreeFilterCallback, memoryContext);
 
-            PhCreateSearchControl(
+            PhCreateSearchControl2(
                 hwndDlg,
                 memoryContext->SearchboxHandle,
                 L"Search Memory (Ctrl+K)",
+                SETTING_SEARCH_MEMORY_REGEX,
+                SETTING_SEARCH_MEMORY_CASE_SENSITIVE,
                 PhpProcessMemorySearchControlCallback,
                 memoryContext
                 );

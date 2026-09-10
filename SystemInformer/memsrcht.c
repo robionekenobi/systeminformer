@@ -1558,10 +1558,12 @@ INT_PTR CALLBACK PhpMemoryStringsDlgProc(
             PhpMemoryStringsSetWindowTitle(context);
             PhRegisterDialog(hwndDlg);
 
-            PhCreateSearchControl(
+            PhCreateSearchControl2(
                 hwndDlg,
                 context->SearchHandle,
                 L"Search Strings (Ctrl+K)",
+                SETTING_SEARCH_MEMORY_STRINGS_REGEX,
+                SETTING_SEARCH_MEMORY_STRINGS_CASE_SENSITIVE,
                 PvpStringsSearchControlCallback,
                 context
                 );

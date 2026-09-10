@@ -795,6 +795,10 @@ NTSTATUS PhpCreateProcessItemForZombieProcess(
     return status;
 }
 
+#define PH_ZOMBIE_LIMIT_PID_MIN 65536
+#define PH_ZOMBIE_LIMIT_PID_MAX 0xffff0000
+#define PH_ZOMBIE_SCAN_HEADROOM 0x10000
+
 NTSTATUS PhpEnumZombieProcessesBruteForce(
     _In_ PPH_ENUM_ZOMBIE_PROCESSES_CALLBACK Callback,
     _In_opt_ PVOID Context
@@ -804,6 +808,7 @@ NTSTATUS PhpEnumZombieProcessesBruteForce(
     PVOID processes;
     PSYSTEM_PROCESS_INFORMATION process;
     PPH_LIST pids;
+    ULONG maximumPid;
     ULONG pid;
     BOOLEAN stop = FALSE;
 
@@ -812,16 +817,22 @@ NTSTATUS PhpEnumZombieProcessesBruteForce(
 
     pids = PhCreateList(40);
 
+    maximumPid = PH_ZOMBIE_LIMIT_PID_MIN;
     process = PH_FIRST_PROCESS(processes);
-
     do
     {
         PhAddItemList(pids, process->UniqueProcessId);
+
+        if (HandleToUlong(process->UniqueProcessId) > maximumPid)
+            maximumPid = HandleToUlong(process->UniqueProcessId);
     } while (process = PH_NEXT_PROCESS(process));
 
     PhFree(processes);
 
-    for (pid = 8; pid <= 65536; pid += 4)
+    if (!NT_SUCCESS(RtlULongAdd(maximumPid, PH_ZOMBIE_SCAN_HEADROOM, &maximumPid)))
+        maximumPid = PH_ZOMBIE_LIMIT_PID_MAX;
+
+    for (pid = 8; pid <= maximumPid; pid += 4)
     {
         NTSTATUS status2;
         HANDLE processHandle;
@@ -1293,7 +1304,7 @@ NTSTATUS PhpEnumEtwGuidHandles(
                         PPH_PROCESS_ITEM processItem;
 
                         processItem = PhReferenceProcessItem(UlongToHandle(instance->Pid));
-         
+
                         //if (NT_SUCCESS(PhEnumProcesses(&processes)))
                         {
                             //if (!PhFindProcessInformation(processes, UlongToHandle(instance->Pid)))

@@ -1528,8 +1528,9 @@ VOID PhInitializeAppSettings(
         {
             status = PhLoadSettingsAutoDetect(NULL, L"settings", &settingsPath, NULL, &PhPortableEnabled);
 
-            if (NT_SUCCESS(status) || status == STATUS_OBJECT_NAME_NOT_FOUND)
+            if (NT_SUCCESS(status) || status == STATUS_OBJECT_NAME_NOT_FOUND || status == STATUS_FILE_CORRUPT_ERROR)
             {
+                // The file was loaded, will be created, or is corrupt and can be reset.
                 PhMoveReference(&PhSettingsFileName, settingsPath);
             }
         }
@@ -1550,8 +1551,7 @@ VOID PhInitializeAppSettings(
             }
             else
             {
-                PhDereferenceObject(PhSettingsFileName);
-                PhSettingsFileName = NULL;
+                PhClearReference(&PhSettingsFileName);
             }
         }
         else if (!NT_SUCCESS(status) && status != STATUS_OBJECT_NAME_NOT_FOUND)

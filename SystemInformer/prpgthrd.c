@@ -1046,10 +1046,12 @@ INT_PTR CALLBACK PhpProcessThreadsDlgProc(
             threadsContext->ListContext.ProcessCreateTime = processItem->CreateTime;
 
             // Initialize the search box. (dmex)
-            PhCreateSearchControl(
+            PhCreateSearchControl2(
                 hwndDlg,
                 threadsContext->SearchboxHandle,
                 L"Search Threads (Ctrl+K)",
+                SETTING_SEARCH_THREADS_REGEX,
+                SETTING_SEARCH_THREADS_CASE_SENSITIVE,
                 PhpProcessThreadsSearchControlCallback,
                 threadsContext
                 );

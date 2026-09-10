@@ -14,6 +14,7 @@
 #define EXTTOOLS_H
 
 #include <phdk.h>
+#include <extendedtoolsintf.h>
 #include <phappresource.h>
 #include <settings.h>
 #include <mapldr.h>
@@ -121,6 +122,8 @@ EXTERN_C BOOLEAN EtEnableAvxSupport;
 #define SETTING_NAME_PIPE_ENUM_WINDOW_SIZE (PLUGIN_NAME L".PipeEnumWindowSize")
 #define SETTING_NAME_PIPE_ENUM_LISTVIEW_COLUMNS (PLUGIN_NAME L".PipeEnumListViewColumns")
 #define SETTING_NAME_PIPE_ENUM_LISTVIEW_COLUMNS_WITH_KSI (PLUGIN_NAME L".PipeEnumListViewColumnsWithKsi")
+#define SETTING_NAME_PIPE_ENUM_TREE_LIST_COLUMNS (PLUGIN_NAME L".PipeEnumTreeListColumns")
+#define SETTING_NAME_PIPE_ENUM_TREE_LIST_SORT (PLUGIN_NAME L".PipeEnumTreeListSort")
 #define SETTING_NAME_FIRMWARE_WINDOW_POSITION (PLUGIN_NAME L".FirmwareWindowPosition")
 #define SETTING_NAME_FIRMWARE_WINDOW_SIZE (PLUGIN_NAME L".FirmwareWindowSize")
 #define SETTING_NAME_FIRMWARE_LISTVIEW_COLUMNS (PLUGIN_NAME L".FirmwareListViewColumns")
@@ -1359,6 +1362,18 @@ ULONG64 EtLookupTotalGpuAdapterShared(
     _In_ LUID AdapterLuid
     );
 
+// EXTENDEDTOOLS_INTERFACE
+BOOLEAN EtLookupProcessGpuStatistics(
+    _In_ HANDLE ProcessId,
+    _Out_ PEXTENDEDTOOLS_PROCESS_GPU Statistics
+    );
+
+// EXTENDEDTOOLS_INTERFACE
+BOOLEAN EtLookupProcessIoStatistics(
+    _In_ HANDLE ProcessId,
+    _Out_ PEXTENDEDTOOLS_PROCESS_IO Statistics
+    );
+
 // Firewall
 extern BOOLEAN EtFwEnabled;
 extern ULONG EtFwFlagsMask;
@@ -2020,5 +2035,8 @@ EXTERN_C VOID EtShowSrumDialog(
 VOID EtShowCacheLatencyDialog(
     _In_ HWND ParentWindowHandle
     );
+
+// This plugin's own instance of the interface it publishes.
+extern EXTENDEDTOOLS_INTERFACE PluginInterface;
 
 #endif
