@@ -71,15 +71,24 @@ si_add_plugin(AgentTools ${ALL_FILES})
 target_include_directories(AgentTools PRIVATE
     "${SI_ROOT}/tools/simcp/include"
 )
+target_include_directories(AgentTools PRIVATE
+    "${SI_ROOT}/phlib/include"
+)
 
 target_link_libraries(AgentTools PRIVATE
     user32
     gdi32
     winsta
     cfgmgr32
+    oleaut32
+    advapi32
+
 )
 
 target_link_options(AgentTools PRIVATE
     /DELAYLOAD:cfgmgr32.dll
     /DELAYLOAD:winsta.dll
+    /DELAYLOAD:oleaut32.dll
+    /DELAYLOAD:advapi32.dll
+
 )
